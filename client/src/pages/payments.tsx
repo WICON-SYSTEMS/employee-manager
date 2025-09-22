@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useEmployees } from "@/hooks/use-employees";
-import { Download, Upload, Wallet, FileSpreadsheet } from "lucide-react";
+import { sendPayout, getPayoutEnvInfo, type PayoutMedium } from "@/lib/payments";
+import { Download, Upload, Wallet, FileSpreadsheet, Shield } from "lucide-react";
 
 export default function PaymentsPage() {
   const { toast } = useToast();
@@ -19,12 +20,16 @@ export default function PaymentsPage() {
   const [employeeId, setEmployeeId] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [currency, setCurrency] = useState<string>("XAF");
+  const [medium, setMedium] = useState<PayoutMedium>("mobile money");
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState<string>("");
+  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
 
   // CSV upload state
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<string[][]>([]);
+  const [csvDefaultMedium, setCsvDefaultMedium] = useState<PayoutMedium>("mobile money");
+  const [csvInProgress, setCsvInProgress] = useState<{ total: number; done: number; success: number; failed: number } | null>(null);
 
   const sortedEmployees = useMemo(
     () => [...employees].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)),
@@ -43,14 +48,33 @@ export default function PaymentsPage() {
       toast({ title: "Missing fields", description: "Select an employee and enter an amount.", variant: "destructive" });
       return;
     }
-    // Placeholder action (no backend yet) – just toast success
-    toast({
-      title: "Payout created",
-      description: `Scheduled ${currency} ${Number(amount).toLocaleString()} to employee`,
-    });
-    // Reset some fields
-    setAmount("");
-    setNote("");
+    const emp = sortedEmployees.find(e => e.employee_id === employeeId);
+    if (!emp) {
+      toast({ title: "Employee not found", description: "Please select a valid employee.", variant: "destructive" });
+      return;
+    }
+    const externalId = `pay_${Date.now()}_${emp.employee_id}`;
+    const name = `${emp.first_name} ${emp.last_name}`;
+    setIsSubmittingManual(true);
+    sendPayout({
+      amount: Number(amount),
+      phone: emp.phone,
+      medium,
+      name,
+      email: emp.email,
+      userId: emp.employee_id,
+      externalId,
+      message: note || `Payout on ${date}`,
+    })
+      .then((resp) => {
+        toast({ title: resp.status || "Payout sent", description: resp.message || `${currency} ${Number(amount).toLocaleString()} to ${name}` });
+        setAmount("");
+        setNote("");
+      })
+      .catch((err: any) => {
+        toast({ title: "Payout failed", description: err?.message || "Could not send payout", variant: "destructive" });
+      })
+      .finally(() => setIsSubmittingManual(false));
   };
 
   const handleCsvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,10 +114,50 @@ export default function PaymentsPage() {
       toast({ title: "No file selected", description: "Choose a CSV file to upload.", variant: "destructive" });
       return;
     }
-    // Placeholder action – show success toast
-    toast({ title: "CSV received", description: `Queued ${csvPreview.length > 0 ? csvPreview.length - 1 : 0} payouts for processing.` });
-    setCsvFile(null);
-    setCsvPreview([]);
+    const rows = csvPreview.slice(1); // skip header
+    if (rows.length === 0) {
+      toast({ title: "Empty CSV", description: "No data rows found.", variant: "destructive" });
+      return;
+    }
+    const mapById = new Map(sortedEmployees.map(e => [e.employee_id, e]));
+    let done = 0, success = 0, failed = 0;
+    setCsvInProgress({ total: rows.length, done, success, failed });
+    const processNext = async (index: number) => {
+      if (index >= rows.length) {
+        toast({ title: "CSV processed", description: `Success: ${success}, Failed: ${failed}` });
+        setCsvInProgress(null);
+        setCsvFile(null);
+        setCsvPreview([]);
+        return;
+      }
+      const [empId, amtStr, cur, d, noteStr] = rows[index];
+      const emp = empId ? mapById.get(empId) : undefined;
+      if (!emp) {
+        failed++; done++;
+        setCsvInProgress({ total: rows.length, done, success, failed });
+        return processNext(index + 1);
+      }
+      const name = `${emp.first_name} ${emp.last_name}`;
+      const externalId = `pay_${Date.now()}_${emp.employee_id}_${index}`;
+      try {
+        await sendPayout({
+          amount: Number(amtStr),
+          phone: emp.phone,
+          medium: csvDefaultMedium,
+          name,
+          email: emp.email,
+          userId: emp.employee_id,
+          externalId,
+          message: noteStr || `Payout on ${d || date}`,
+        });
+        success++; done++;
+      } catch (e: any) {
+        failed++; done++;
+      }
+      setCsvInProgress({ total: rows.length, done, success, failed });
+      processNext(index + 1);
+    };
+    processNext(0);
   };
 
   return (
@@ -159,6 +223,18 @@ export default function PaymentsPage() {
                     </div>
                   </div>
                   <div>
+                    <Label>Medium</Label>
+                    <Select value={medium} onValueChange={(v) => setMedium(v as PayoutMedium)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select medium" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="mobile money">Mobile Money</SelectItem>
+                        <SelectItem value="orange money">Orange Money</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
                     <Label>Currency</Label>
                     <Select value={currency} onValueChange={setCurrency}>
                       <SelectTrigger>
@@ -180,8 +256,8 @@ export default function PaymentsPage() {
                     <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note for this payout" />
                   </div>
                   <div className="md:col-span-2 flex justify-end">
-                    <Button type="submit" className="gap-2">
-                      Create Payout
+                    <Button type="submit" className="gap-2" disabled={isSubmittingManual}>
+                      {isSubmittingManual ? "Sending..." : "Create Payout"}
                     </Button>
                   </div>
                 </form>
@@ -208,12 +284,32 @@ export default function PaymentsPage() {
                       <Upload className="w-4 h-4" /> Choose CSV
                     </Button>
                   </Label>
+                  <div className="flex items-center gap-2">
+                    <Label>Default Medium</Label>
+                    <Select value={csvDefaultMedium} onValueChange={(v) => setCsvDefaultMedium(v as PayoutMedium)}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Medium" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="mobile money">Mobile Money</SelectItem>
+                        <SelectItem value="orange money">Orange Money</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button onClick={handleCsvUpload} disabled={!csvFile} className="gap-2">
                     Upload & Queue
                   </Button>
                 </div>
                 {csvFile && (
                   <p className="text-xs text-muted-foreground">Selected: {csvFile.name}</p>
+                )}
+                {csvInProgress && (
+                  <div className="text-sm text-muted-foreground">
+                    Processing {csvInProgress.done}/{csvInProgress.total} • Success: {csvInProgress.success} • Failed: {csvInProgress.failed}
+                    <div className="w-full h-2 bg-muted rounded mt-2 overflow-hidden">
+                      <div className="h-2 bg-primary" style={{ width: `${(csvInProgress.done / csvInProgress.total) * 100}%` }}></div>
+                    </div>
+                  </div>
                 )}
                 {csvPreview.length > 0 && (
                   <div className="overflow-x-auto">
