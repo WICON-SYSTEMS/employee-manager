@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Mail, Phone, IdCard, DollarSign, Download, Edit } from "lucide-react";
+import { Mail, Phone, IdCard, DollarSign, Download, Edit, Upload } from "lucide-react";
 import { generateQRCodeDataURL, downloadQRCode } from "@/lib/qr-code";
 import { getEmployee } from "@/lib/employees";
 import type { Employee } from "@shared/schema";
+import { useEmployees } from "@/hooks/use-employees";
+import { useToast } from "@/hooks/use-toast";
 
 interface EmployeeDetailModalProps {
   open: boolean;
@@ -19,6 +21,10 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
   const [qrCodeDataURL, setQrCodeDataURL] = useState<string>("");
   const [details, setDetails] = useState<Employee | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [qrImage, setQrImage] = useState<string | null>(null);
+  const { uploadBiometrics, isUploadingBiometrics, uploadError } = useEmployees();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (employee && open) {
@@ -56,6 +62,41 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
     if (qrCodeDataURL) {
       downloadQRCode(qrCodeDataURL, `employee-${employee.employee_id}-qr.png`);
     }
+  };
+
+  const handleSelectFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Max size is 5MB", variant: "destructive" });
+      return;
+    }
+    setUploadFile(file);
+  };
+
+  const handleUploadBiometrics = () => {
+    if (!uploadFile || !employee?.employee_id) {
+      toast({ title: "Select a photo", description: "Choose an image to upload.", variant: "destructive" });
+      return;
+    }
+    uploadBiometrics(
+      { employeeId: employee.employee_id, file: uploadFile },
+      {
+        onSuccess: async (resp) => {
+          // resp contains qr_code_image and metrics
+          setQrImage(resp.qr_code_image);
+          toast({ title: "Biometrics uploaded", description: "QR code generated successfully." });
+          // refetch details to update biometric_status
+          try {
+            const refreshed = await getEmployee(employee.employee_id);
+            setDetails(refreshed);
+          } catch {}
+        },
+        onError: (err: any) => {
+          toast({ title: "Upload failed", description: err?.message || "Could not upload biometrics", variant: "destructive" });
+        },
+      }
+    );
   };
 
   const handleEdit = () => {
@@ -141,17 +182,29 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
             </div>
           </div>
 
-          {/* QR Code Section */}
-          <div className="bg-muted p-6 rounded-lg">
-            <h4 className="font-medium text-foreground mb-4">Employee QR Code</h4>
-            <div className="flex items-center gap-6">
+          {/* Biometrics & QR Section */}
+          <div className="bg-muted p-6 rounded-lg space-y-4">
+            <h4 className="font-medium text-foreground">Facial Biometrics & QR</h4>
+            <p className="text-sm text-muted-foreground">
+              Upload an employee facial photo to generate a QR code from the backend.
+            </p>
+
+            {/* Status */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant={(details?.biometric_status?.facial_biometrics_registered ? 'default' : 'secondary') as any}>
+                Face: {details?.biometric_status?.facial_biometrics_registered ? 'Registered' : 'Not registered'}
+              </Badge>
+              <Badge variant={(details?.biometric_status?.qr_code_generated ? 'default' : 'secondary') as any}>
+                QR: {details?.biometric_status?.qr_code_generated ? 'Generated' : 'Not generated'}
+              </Badge>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="bg-white p-4 rounded-lg" data-testid="qr-code-container">
-                {qrCodeDataURL ? (
-                  <img 
-                    src={qrCodeDataURL} 
-                    alt={`QR Code for ${employee.first_name} ${employee.last_name}`}
-                    className="w-32 h-32"
-                  />
+                {qrImage ? (
+                  <img src={qrImage} alt="QR Code" className="w-32 h-32" />
+                ) : qrCodeDataURL ? (
+                  <img src={qrCodeDataURL} alt={`QR Code for ${employee.first_name} ${employee.last_name}`} className="w-32 h-32" />
                 ) : (
                   <div className="w-32 h-32 bg-gray-200 rounded flex items-center justify-center">
                     <div className="text-center">
@@ -161,18 +214,38 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
                   </div>
                 )}
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  This QR code contains the employee's unique ID and can be used for attendance tracking.
-                </p>
-                <Button
-                  onClick={handleDownloadQR}
-                  disabled={!qrCodeDataURL}
-                  data-testid="button-download-qr"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download QR Code
-                </Button>
+
+              <div className="flex-1">
+                <div className="flex items-center gap-3">
+                  <input
+                    id="biometric-file"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleSelectFile}
+                  />
+                  <label htmlFor="biometric-file">
+                    <Button variant="outline" type="button" className="gap-2">
+                      <Upload className="h-4 w-4" /> Choose Photo
+                    </Button>
+                  </label>
+                  <Button
+                    type="button"
+                    onClick={handleUploadBiometrics}
+                    disabled={isUploadingBiometrics}
+                    className="gap-2"
+                  >
+                    {isUploadingBiometrics ? 'Uploading...' : 'Upload & Generate QR'}
+                  </Button>
+                </div>
+                {uploadFile && (
+                  <p className="text-xs text-muted-foreground mt-1">Selected: {uploadFile.name}</p>
+                )}
+                <div className="mt-4">
+                  <Button onClick={handleDownloadQR} disabled={!qrImage && !qrCodeDataURL} data-testid="button-download-qr">
+                    <Download className="h-4 w-4 mr-2" /> Download QR Code
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
