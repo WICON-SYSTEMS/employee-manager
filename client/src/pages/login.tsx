@@ -20,7 +20,7 @@ export default function Login() {
   const form = useForm<LoginData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: "admin@company.com",
+      username: "admin",
       password: "admin123",
     },
   });
@@ -51,16 +51,16 @@ export default function Login() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
                 control={form.control}
-                name="email"
+                name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email Address</FormLabel>
+                    <FormLabel>Username</FormLabel>
                     <FormControl>
                       <Input
-                        type="email"
-                        placeholder="admin@company.com"
+                        type="text"
+                        placeholder="admin"
                         {...field}
-                        data-testid="input-email"
+                        data-testid="input-username"
                       />
                     </FormControl>
                     <FormMessage />
@@ -130,7 +130,7 @@ export default function Login() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
-              Demo credentials: admin@company.com / admin123
+              Demo credentials: admin / admin123
             </p>
           </div>
         </CardContent>

@@ -8,7 +8,7 @@ export function useAuth() {
   const queryClient = useQueryClient();
 
   const { data: user, isLoading } = useQuery({
-    queryKey: ["/api/v1/admin/auth/me"],
+    queryKey: ["/v1/admin/auth/me"],
     queryFn: getCurrentUser,
     retry: false,
   });
@@ -16,7 +16,8 @@ export function useAuth() {
   const loginMutation = useMutation({
     mutationFn: login,
     onSuccess: (data) => {
-      queryClient.setQueryData(["/api/v1/admin/auth/me"], data);
+      // Store the admin data in the cache
+      queryClient.setQueryData(["/v1/admin/auth/me"], { admin: data.admin });
       setLocation("/dashboard");
     },
   });
@@ -24,7 +25,7 @@ export function useAuth() {
   const logoutMutation = useMutation({
     mutationFn: logout,
     onSuccess: () => {
-      queryClient.setQueryData(["/api/v1/admin/auth/me"], null);
+      queryClient.setQueryData(["/v1/admin/auth/me"], null);
       queryClient.clear();
       setLocation("/login");
     },

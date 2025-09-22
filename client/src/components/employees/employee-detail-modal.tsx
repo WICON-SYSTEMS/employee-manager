@@ -19,23 +19,19 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
 
   useEffect(() => {
     if (employee && open) {
-      generateQRCodeDataURL(employee.id).then(setQrCodeDataURL);
+      generateQRCodeDataURL(employee.employee_id).then(setQrCodeDataURL);
     }
   }, [employee, open]);
 
   if (!employee) return null;
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
 
   const handleDownloadQR = () => {
     if (qrCodeDataURL) {
-      downloadQRCode(qrCodeDataURL, `employee-${employee.id}-qr.png`);
+      downloadQRCode(qrCodeDataURL, `employee-${employee.employee_id}-qr.png`);
     }
   };
 
@@ -55,14 +51,14 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
           {/* Employee Header */}
           <div className="flex items-start gap-6">
             <Avatar className="w-24 h-24">
-              <AvatarImage src={employee.photo || ""} alt={employee.name} />
+              <AvatarImage src="" alt={`${employee.first_name} ${employee.last_name}`} />
               <AvatarFallback className="bg-muted text-2xl">
-                {getInitials(employee.name)}
+                {getInitials(employee.first_name, employee.last_name)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <h3 className="text-2xl font-bold text-foreground" data-testid="text-employee-name">
-                {employee.name}
+                {employee.first_name} {employee.last_name}
               </h3>
               <p className="text-lg text-muted-foreground" data-testid="text-employee-position">
                 {employee.position}
@@ -72,7 +68,7 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
               </p>
               <div className="mt-3">
                 <Badge 
-                  variant={employee.status === 'Active' ? 'default' : 'secondary'}
+                  variant={employee.status === 'active' ? 'default' : 'secondary'}
                   data-testid="badge-employee-status"
                 >
                   {employee.status}
@@ -107,7 +103,7 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
                 <div className="flex items-center gap-3">
                   <IdCard className="h-4 w-4 text-muted-foreground" />
                   <span className="text-foreground">
-                    ID: <span data-testid="text-employee-id">{employee.id}</span>
+                    ID: <span data-testid="text-employee-id">{employee.employee_code}</span>
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -128,7 +124,7 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
                 {qrCodeDataURL ? (
                   <img 
                     src={qrCodeDataURL} 
-                    alt={`QR Code for ${employee.name}`}
+                    alt={`QR Code for ${employee.first_name} ${employee.last_name}`}
                     className="w-32 h-32"
                   />
                 ) : (

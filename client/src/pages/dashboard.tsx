@@ -6,7 +6,7 @@ import { Users, UserCheck, Clock, Calendar } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { employees } = useEmployees();
+  const { employees, isLoading, error } = useEmployees();
 
   const today = new Date();
   const dateString = today.toLocaleDateString('en-US', {
@@ -16,27 +16,35 @@ export default function Dashboard() {
     day: 'numeric'
   });
 
-  // Calculate stats
-  const totalEmployees = employees.length;
-  const activeEmployees = employees.filter(emp => emp.status === 'Active').length;
+  // Calculate stats - employees list endpoint not available yet, using mock data
+  const employeeList = Array.isArray(employees) ? employees : [];
+  const totalEmployees = employeeList.length;
+  const activeEmployees = employeeList.filter(emp => emp.status === 'active').length;
+  
+  // Mock data for demo purposes (until employees list endpoint is available)
+  const mockTotalEmployees = totalEmployees || 25;
+  const mockActiveEmployees = activeEmployees || 23;
   // Mock data for attendance (since we don't have actual attendance tracking yet)
-  const presentToday = Math.floor(activeEmployees * 0.85); // 85% attendance rate
-  const lateArrivals = Math.floor(activeEmployees * 0.08); // 8% late
-  const onLeave = Math.floor(activeEmployees * 0.05); // 5% on leave
+  const presentToday = Math.floor(mockActiveEmployees * 0.85); // 85% attendance rate
+  const lateArrivals = Math.floor(mockActiveEmployees * 0.08); // 8% late
+  const absentToday = mockActiveEmployees - presentToday; // 5% on leave
 
   const stats = [
     {
       title: "Total Employees",
-      value: totalEmployees,
+      value: mockTotalEmployees.toString(),
       icon: Users,
-      change: "+12%",
-      changeText: "from last month",
-      positive: true,
-      color: "bg-blue-100 text-blue-600"
+      color: "bg-blue-500"
+    },
+    {
+      title: "Active Employees",
+      value: mockActiveEmployees.toString(),
+      icon: UserCheck,
+      color: "bg-green-500"
     },
     {
       title: "Present Today",
-      value: presentToday,
+      value: presentToday.toString(),
       icon: UserCheck,
       change: "85.2%",
       changeText: "attendance rate",
@@ -45,7 +53,7 @@ export default function Dashboard() {
     },
     {
       title: "Late Arrivals",
-      value: lateArrivals,
+      value: lateArrivals.toString(),
       icon: Clock,
       change: "+3",
       changeText: "from yesterday",
@@ -53,13 +61,13 @@ export default function Dashboard() {
       color: "bg-yellow-100 text-yellow-600"
     },
     {
-      title: "On Leave",
-      value: onLeave,
+      title: "Absent Today",
+      value: absentToday.toString(),
       icon: Calendar,
-      change: "Approved leaves",
+      change: "Absent employees",
       changeText: "",
       positive: null,
-      color: "bg-purple-100 text-purple-600"
+      color: "bg-red-100 text-red-600"
     }
   ];
 
@@ -106,7 +114,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {user?.name?.split(' ')[0] || 'Admin'}!
+            Welcome back, {user?.full_name || 'Admin'}!
           </h1>
           <p className="text-muted-foreground mt-2">Today is {dateString}</p>
         </div>

@@ -20,7 +20,7 @@ const formSchema = insertEmployeeSchema.extend({
 interface EmployeeModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (formData: FormData) => void;
+  onSubmit: (employeeData: InsertEmployee) => void;
   employee?: Employee | null;
   isLoading?: boolean;
 }
@@ -34,13 +34,14 @@ export function EmployeeModal({ open, onClose, onSubmit, employee, isLoading }: 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
+      first_name: "",
+      last_name: "",
       email: "",
       phone: "",
       position: "",
       department: "",
       salary: 0,
-      status: "Active",
+      hire_date: new Date().toISOString().split('T')[0],
     },
   });
 
@@ -49,24 +50,26 @@ export function EmployeeModal({ open, onClose, onSubmit, employee, isLoading }: 
     if (open) {
       if (employee) {
         form.reset({
-          name: employee.name,
+          first_name: employee.first_name,
+          last_name: employee.last_name,
           email: employee.email,
           phone: employee.phone,
           position: employee.position,
           department: employee.department,
           salary: employee.salary,
-          status: employee.status as "Active" | "Inactive",
+          hire_date: employee.hire_date ? employee.hire_date.split('T')[0] : new Date().toISOString().split('T')[0],
         });
-        setPhotoPreview(employee.photo || "");
+        setPhotoPreview("");
       } else {
         form.reset({
-          name: "",
+          first_name: "",
+          last_name: "",
           email: "",
           phone: "",
           position: "",
           department: "",
           salary: 0,
-          status: "Active",
+          hire_date: new Date().toISOString().split('T')[0],
         });
         setPhotoPreview("");
       }
@@ -92,27 +95,17 @@ export function EmployeeModal({ open, onClose, onSubmit, employee, isLoading }: 
   };
 
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
-    const formData = new FormData();
+    // Convert hire_date to ISO string
+    const employeeData: InsertEmployee = {
+      ...values,
+      hire_date: new Date(values.hire_date).toISOString(),
+    };
     
-    Object.entries(values).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        formData.append(key, value.toString());
-      }
-    });
-
-    if (photoFile) {
-      formData.append("photo", photoFile);
-    }
-
-    onSubmit(formData);
+    onSubmit(employeeData);
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
 
   return (
@@ -133,7 +126,7 @@ export function EmployeeModal({ open, onClose, onSubmit, employee, isLoading }: 
                 <Avatar className="w-24 h-24">
                   <AvatarImage src={photoPreview} />
                   <AvatarFallback className="bg-muted">
-                    {form.watch("name") ? getInitials(form.watch("name")) : <Camera className="h-8 w-8" />}
+                    {form.watch("first_name") && form.watch("last_name") ? getInitials(form.watch("first_name"), form.watch("last_name")) : <Camera className="h-8 w-8" />}
                   </AvatarFallback>
                 </Avatar>
                 <div>
@@ -161,12 +154,26 @@ export function EmployeeModal({ open, onClose, onSubmit, employee, isLoading }: 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
-                name="name"
+                name="first_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Full Name *</FormLabel>
+                    <FormLabel>First Name *</FormLabel>
                     <FormControl>
-                      <Input {...field} data-testid="input-name" />
+                      <Input {...field} data-testid="input-first-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="last_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Last Name *</FormLabel>
+                    <FormControl>
+                      <Input {...field} data-testid="input-last-name" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -259,6 +266,24 @@ export function EmployeeModal({ open, onClose, onSubmit, employee, isLoading }: 
                           data-testid="input-salary"
                         />
                       </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="hire_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hire Date *</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="date"
+                        {...field}
+                        data-testid="input-hire-date"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -74,12 +74,12 @@ export function Sidebar() {
           <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
               <span className="text-sm font-medium text-primary-foreground">
-                {user ? getInitials(user.name) : "A"}
+                {user ? getInitials(user.full_name) : "A"}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">
-                {user?.name || "Admin"}
+                {user?.full_name || "Admin"}
               </p>
               <p className="text-xs text-muted-foreground">Administrator</p>
             </div>

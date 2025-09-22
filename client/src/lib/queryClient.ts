@@ -1,54 +1,91 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import type { ApiResponse } from "@shared/schema";
 
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
-  }
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://biometric-attendance-system-backend.onrender.com";
+
+// Token management
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+export function clearAuthToken() {
+  authToken = null;
 }
 
 export async function apiRequest(
   method: string,
-  url: string,
-  data?: unknown | undefined,
+  path: string,
+  body?: any,
+  isFormData = false
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
+  
+  const options: RequestInit = {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+    headers: {} as Record<string, string>,
+  };
 
-  await throwIfResNotOk(res);
-  return res;
+  // Add auth header if token exists
+  if (authToken) {
+    (options.headers as Record<string, string>)["Authorization"] = `Bearer ${authToken}`;
+  }
+
+  // Handle different content types
+  if (body) {
+    if (isFormData) {
+      // For FormData, don't set Content-Type (browser will set it with boundary)
+      options.body = body;
+    } else {
+      (options.headers as Record<string, string>)["Content-Type"] = "application/json";
+      options.body = JSON.stringify(body);
+    }
+  }
+
+  const response = await fetch(url, options);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorMessage;
+    try {
+      const errorJson = JSON.parse(errorText);
+      errorMessage = errorJson.message || errorJson.error || "An error occurred";
+    } catch {
+      errorMessage = errorText || "An error occurred";
+    }
+    throw new Error(errorMessage);
+  }
+
+  return response;
 }
 
-type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
-    });
-
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
-
-    await throwIfResNotOk(res);
-    return await res.json();
-  };
+// Helper function to handle API responses with the standard format
+export async function apiCall<T>(
+  method: string,
+  path: string,
+  body?: any,
+  isFormData = false
+): Promise<T> {
+  const response = await apiRequest(method, path, body, isFormData);
+  const result: ApiResponse<T> = await response.json();
+  
+  if (result.status !== "success") {
+    throw new Error(result.message || "API request failed");
+  }
+  
+  return result.data;
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
+      retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
     },
     mutations: {
       retry: false,

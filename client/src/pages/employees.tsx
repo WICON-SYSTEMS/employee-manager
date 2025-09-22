@@ -44,8 +44,8 @@ export default function Employees() {
   };
 
   const handleDeleteEmployee = (employee: Employee) => {
-    if (window.confirm(`Are you sure you want to delete ${employee.name}?`)) {
-      deleteEmployee(employee.id, {
+    if (window.confirm(`Are you sure you want to delete ${employee.first_name} ${employee.last_name}?`)) {
+      deleteEmployee(employee.employee_id, {
         onSuccess: () => {
           toast({
             title: "Success",
@@ -63,9 +63,9 @@ export default function Employees() {
     }
   };
 
-  const handleSubmitEmployee = (formData: FormData) => {
+  const handleSubmitEmployee = (employeeData: any) => {
     if (editingEmployee) {
-      updateEmployee({ id: editingEmployee.id, formData }, {
+      updateEmployee({ id: editingEmployee.employee_id, data: employeeData }, {
         onSuccess: () => {
           setShowModal(false);
           toast({
@@ -82,7 +82,7 @@ export default function Employees() {
         }
       });
     } else {
-      createEmployee(formData, {
+      createEmployee(employeeData, {
         onSuccess: () => {
           setShowModal(false);
           toast({

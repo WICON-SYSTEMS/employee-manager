@@ -28,8 +28,9 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
 
   // Filter employees
   const filteredEmployees = employees.filter(employee => {
+    const fullName = `${employee.first_name} ${employee.last_name}`;
     const matchesSearch = !search || 
-      employee.name.toLowerCase().includes(search.toLowerCase()) ||
+      fullName.toLowerCase().includes(search.toLowerCase()) ||
       employee.email.toLowerCase().includes(search.toLowerCase()) ||
       employee.position.toLowerCase().includes(search.toLowerCase());
     
@@ -45,12 +46,8 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
   const endIndex = Math.min(startIndex + itemsPerPage, filteredEmployees.length);
   const paginatedEmployees = filteredEmployees.slice(startIndex, endIndex);
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
 
   return (
@@ -134,38 +131,38 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
               </TableRow>
             ) : (
               paginatedEmployees.map((employee) => (
-                <TableRow key={employee.id} className="hover:bg-accent transition-colors" data-testid={`row-employee-${employee.id}`}>
+                <TableRow key={employee.employee_id} className="hover:bg-accent transition-colors" data-testid={`row-employee-${employee.employee_id}`}>
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="w-10 h-10">
-                        <AvatarImage src={employee.photo || ""} alt={employee.name} />
+                        <AvatarImage src="" alt={`${employee.first_name} ${employee.last_name}`} />
                         <AvatarFallback className="bg-muted">
-                          {getInitials(employee.name)}
+                          {getInitials(employee.first_name, employee.last_name)}
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <p className="font-medium text-foreground" data-testid={`text-name-${employee.id}`}>
-                          {employee.name}
+                        <p className="font-medium text-foreground" data-testid={`text-name-${employee.employee_id}`}>
+                          {employee.first_name} {employee.last_name}
                         </p>
-                        <p className="text-sm text-muted-foreground" data-testid={`text-email-${employee.id}`}>
+                        <p className="text-sm text-muted-foreground" data-testid={`text-email-${employee.employee_id}`}>
                           {employee.email}
                         </p>
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-foreground" data-testid={`text-id-${employee.id}`}>
-                    {employee.id}
+                  <TableCell className="text-foreground" data-testid={`text-id-${employee.employee_id}`}>
+                    {employee.employee_code}
                   </TableCell>
-                  <TableCell className="text-foreground" data-testid={`text-department-${employee.id}`}>
+                  <TableCell className="text-foreground" data-testid={`text-department-${employee.employee_id}`}>
                     {employee.department}
                   </TableCell>
-                  <TableCell className="text-foreground" data-testid={`text-position-${employee.id}`}>
+                  <TableCell className="text-foreground" data-testid={`text-position-${employee.employee_id}`}>
                     {employee.position}
                   </TableCell>
                   <TableCell>
                     <Badge 
-                      variant={employee.status === 'Active' ? 'default' : 'secondary'}
-                      data-testid={`badge-status-${employee.id}`}
+                      variant={employee.status === 'active' ? 'default' : 'secondary'}
+                      data-testid={`badge-status-${employee.employee_id}`}
                     >
                       {employee.status}
                     </Badge>
@@ -176,7 +173,7 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
                         variant="ghost"
                         size="sm"
                         onClick={() => onView(employee)}
-                        data-testid={`button-view-${employee.id}`}
+                        data-testid={`button-view-${employee.employee_id}`}
                         className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                       >
                         <Eye className="h-4 w-4" />
@@ -185,7 +182,7 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
                         variant="ghost"
                         size="sm"
                         onClick={() => onEdit(employee)}
-                        data-testid={`button-edit-${employee.id}`}
+                        data-testid={`button-edit-${employee.employee_id}`}
                         className="text-green-600 hover:text-green-800 hover:bg-green-50"
                       >
                         <Edit className="h-4 w-4" />
@@ -194,7 +191,7 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
                         variant="ghost"
                         size="sm"
                         onClick={() => onDelete(employee)}
-                        data-testid={`button-delete-${employee.id}`}
+                        data-testid={`button-delete-${employee.employee_id}`}
                         className="text-red-600 hover:text-red-800 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />
