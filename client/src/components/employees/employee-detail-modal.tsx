@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Mail, Phone, IdCard, DollarSign, Download, Edit } from "lucide-react";
 import { generateQRCodeDataURL, downloadQRCode } from "@/lib/qr-code";
+import { getEmployee } from "@/lib/employees";
 import type { Employee } from "@shared/schema";
 
 interface EmployeeDetailModalProps {
@@ -16,6 +17,8 @@ interface EmployeeDetailModalProps {
 
 export function EmployeeDetailModal({ open, onClose, onEdit, employee }: EmployeeDetailModalProps) {
   const [qrCodeDataURL, setQrCodeDataURL] = useState<string>("");
+  const [details, setDetails] = useState<Employee | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     if (employee && open) {
@@ -23,7 +26,27 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
     }
   }, [employee, open]);
 
+  // Fetch full employee details (includes salary) when modal opens
+  useEffect(() => {
+    const fetchDetails = async () => {
+      if (!open || !employee?.employee_id) return;
+      try {
+        setLoadingDetails(true);
+        const full = await getEmployee(employee.employee_id);
+        setDetails(full);
+      } catch (e) {
+        // fail silently; UI will fallback to list data
+      } finally {
+        setLoadingDetails(false);
+      }
+    };
+    fetchDetails();
+  }, [open, employee?.employee_id]);
+
   if (!employee) return null;
+
+  const salaryVal = (details?.salary ?? employee.salary) as unknown;
+  const salaryNumber = typeof salaryVal === 'number' ? salaryVal : undefined;
 
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName[0]}${lastName[0]}`.toUpperCase();
@@ -106,12 +129,14 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
                     ID: <span data-testid="text-employee-id">{employee.employee_code}</span>
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-foreground" data-testid="text-employee-salary">
-                    ${employee.salary.toLocaleString()}
-                  </span>
-                </div>
+                {typeof salaryNumber === 'number' && (
+                  <div className="flex items-center gap-3">
+                   Salary:
+                    <span className="text-foreground" data-testid="text-employee-salary">
+                      {`XAF ${salaryNumber.toLocaleString()}`}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
