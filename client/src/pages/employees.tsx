@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useEmployees } from "@/hooks/use-employees";
 import { useToast } from "@/hooks/use-toast";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import type { Employee } from "@shared/schema";
 
 export default function Employees() {
@@ -24,6 +24,7 @@ export default function Employees() {
     createEmployee, 
     updateEmployee, 
     deleteEmployee,
+    isDeleting,
     isCreating,
     isUpdating,
     createError,
@@ -168,8 +169,9 @@ export default function Employees() {
                 <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
                   Cancel
                 </Button>
-                <Button variant="destructive" onClick={handleConfirmDelete} data-testid="button-confirm-delete">
-                  Delete
+                <Button variant="destructive" onClick={handleConfirmDelete} data-testid="button-confirm-delete" disabled={isDeleting}>
+                  {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
                 </Button>
               </div>
             </div>
