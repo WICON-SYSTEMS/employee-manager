@@ -90,9 +90,9 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
       { employeeId: employee.employee_id, file: uploadFile },
       {
         onSuccess: async (resp) => {
-          // resp contains qr_code_image and metrics
-          setQrImage(normalizeQrImage(resp.qr_code_image));
-          toast({ title: "Biometrics uploaded", description: "QR code generated successfully." });
+          // resp contains { data, message }
+          setQrImage(normalizeQrImage(resp.data.qr_code_image));
+          toast({ title: "Success", description: resp.message || "QR code generated successfully." });
           // refetch details to update biometric_status
           try {
             const refreshed = await getEmployee(employee.employee_id);

@@ -1,5 +1,5 @@
 import { apiCall, apiRequest } from "./queryClient";
-import type { Employee, InsertEmployee, UpdateEmployee, BiometricUploadResponse } from "@shared/schema";
+import type { Employee, InsertEmployee, UpdateEmployee, BiometricUploadResponse, ApiResponse } from "@shared/schema";
 
 // Get all employees (paginated)
 type EmployeesListResponse = {
@@ -46,7 +46,10 @@ export async function deleteEmployee(employeeId: string): Promise<void> {
 }
 
 // Upload employee photo/biometrics
-export async function uploadEmployeeBiometrics(employeeId: string, file: File): Promise<BiometricUploadResponse> {
+export async function uploadEmployeeBiometrics(
+  employeeId: string,
+  file: File
+): Promise<{ data: BiometricUploadResponse; message: string }> {
   const formData = new FormData();
   // Primary expected field name
   formData.append("file", file);
@@ -54,14 +57,18 @@ export async function uploadEmployeeBiometrics(employeeId: string, file: File): 
   formData.append("image", file);
   // And some use 'photo'
   formData.append("photo", file);
-  
-  const result = await apiCall<BiometricUploadResponse>(
-    "POST", 
-    `/v1/mobile/employees/${employeeId}/facial-biometrics/upload`, 
-    formData, 
-    true // isFormData
+
+  const response = await apiRequest(
+    "POST",
+    `/v1/mobile/employees/${employeeId}/facial-biometrics/upload`,
+    formData,
+    true
   );
-  return result;
+  const json = (await response.json()) as ApiResponse<BiometricUploadResponse>;
+  if (json.status !== "success") {
+    throw new Error(json.message || "Biometric upload failed");
+  }
+  return { data: json.data, message: json.message };
 }
 
 // Helper to normalize QR image to a data URL if backend returns raw base64
