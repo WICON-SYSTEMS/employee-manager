@@ -33,8 +33,8 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
       employee.email.toLowerCase().includes(search.toLowerCase()) ||
       employee.position.toLowerCase().includes(search.toLowerCase());
     
-    const matchesDepartment = !departmentFilter || employee.department === departmentFilter;
-    const matchesStatus = !statusFilter || employee.status === statusFilter;
+    const matchesDepartment = !departmentFilter || departmentFilter === "all" || employee.department === departmentFilter;
+    const matchesStatus = !statusFilter || statusFilter === "all" || employee.status === statusFilter;
     
     return matchesSearch && matchesDepartment && matchesStatus;
   });
@@ -74,7 +74,7 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
               <SelectValue placeholder="All Departments" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Departments</SelectItem>
+              <SelectItem value="all">All Departments</SelectItem>
               {departments.map(dept => (
                 <SelectItem key={dept} value={dept}>{dept}</SelectItem>
               ))}
@@ -85,7 +85,7 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Status</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="Active">Active</SelectItem>
               <SelectItem value="Inactive">Inactive</SelectItem>
             </SelectContent>
