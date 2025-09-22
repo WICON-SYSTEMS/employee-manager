@@ -56,6 +56,13 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
   const salaryVal = (details?.salary ?? employee.salary) as unknown;
   const salaryNumber = typeof salaryVal === 'number' ? salaryVal : undefined;
 
+  // Derive biometric status safely
+  const faceRegistered =
+    details?.biometric_status?.facial_biometrics_registered ?? undefined;
+  const qrGenerated =
+    details?.biometric_status?.qr_code_generated ??
+    (employee.registration_status === 'fully_registered' ? true : undefined);
+
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
@@ -92,6 +99,15 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
         onSuccess: async (resp) => {
           // resp contains { data, message }
           setQrImage(normalizeQrImage(resp.data.qr_code_image));
+          // Optimistically reflect status
+          setDetails((prev) => prev ? {
+            ...prev,
+            biometric_status: {
+              fingerprint_registered: prev.biometric_status?.fingerprint_registered ?? false,
+              facial_biometrics_registered: true,
+              qr_code_generated: true,
+            }
+          } : prev);
           toast({ title: "Success", description: resp.message || "QR code generated successfully." });
           // refetch details to update biometric_status
           try {
@@ -198,11 +214,11 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
 
             {/* Status */}
             <div className="flex flex-wrap items-center gap-3">
-              <Badge variant={(details?.biometric_status?.facial_biometrics_registered ? 'default' : 'secondary') as any}>
-                Face: {details?.biometric_status?.facial_biometrics_registered ? 'Registered' : 'Not registered'}
+              <Badge variant={(faceRegistered ? 'default' : 'secondary') as any}>
+                {loadingDetails && faceRegistered === undefined ? 'Face: Loading…' : `Face: ${faceRegistered ? 'Registered' : 'Not registered'}`}
               </Badge>
-              <Badge variant={(details?.biometric_status?.qr_code_generated ? 'default' : 'secondary') as any}>
-                QR: {details?.biometric_status?.qr_code_generated ? 'Generated' : 'Not generated'}
+              <Badge variant={(qrGenerated ? 'default' : 'secondary') as any}>
+                {loadingDetails && qrGenerated === undefined ? 'QR: Loading…' : `QR: ${qrGenerated ? 'Generated' : 'Not generated'}`}
               </Badge>
             </div>
 
