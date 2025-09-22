@@ -48,7 +48,12 @@ export async function deleteEmployee(employeeId: string): Promise<void> {
 // Upload employee photo/biometrics
 export async function uploadEmployeeBiometrics(employeeId: string, file: File): Promise<BiometricUploadResponse> {
   const formData = new FormData();
+  // Primary expected field name
   formData.append("file", file);
+  // Some backends expect 'image' instead of 'file' – include for compatibility
+  formData.append("image", file);
+  // And some use 'photo'
+  formData.append("photo", file);
   
   const result = await apiCall<BiometricUploadResponse>(
     "POST", 
@@ -57,4 +62,12 @@ export async function uploadEmployeeBiometrics(employeeId: string, file: File): 
     true // isFormData
   );
   return result;
+}
+
+// Helper to normalize QR image to a data URL if backend returns raw base64
+export function normalizeQrImage(src: string | undefined | null): string | null {
+  if (!src) return null;
+  if (src.startsWith('data:')) return src;
+  // assume PNG base64
+  return `data:image/png;base64,${src}`;
 }

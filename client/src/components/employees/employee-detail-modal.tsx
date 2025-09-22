@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Mail, Phone, IdCard, DollarSign, Download, Edit, Upload } from "lucide-react";
-import { generateQRCodeDataURL, downloadQRCode } from "@/lib/qr-code";
-import { getEmployee } from "@/lib/employees";
+import { getEmployee, normalizeQrImage } from "@/lib/employees";
 import type { Employee } from "@shared/schema";
 import { useEmployees } from "@/hooks/use-employees";
 import { useToast } from "@/hooks/use-toast";
@@ -18,19 +17,22 @@ interface EmployeeDetailModalProps {
 }
 
 export function EmployeeDetailModal({ open, onClose, onEdit, employee }: EmployeeDetailModalProps) {
-  const [qrCodeDataURL, setQrCodeDataURL] = useState<string>("");
+  // Backend-generated QR image string (URL or base64) after upload
+  const [qrImage, setQrImage] = useState<string | null>(null);
   const [details, setDetails] = useState<Employee | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [qrImage, setQrImage] = useState<string | null>(null);
   const { uploadBiometrics, isUploadingBiometrics, uploadError } = useEmployees();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Clear any previous upload state when reopening
   useEffect(() => {
-    if (employee && open) {
-      generateQRCodeDataURL(employee.employee_id).then(setQrCodeDataURL);
+    if (open) {
+      setUploadFile(null);
+      setQrImage(null);
     }
-  }, [employee, open]);
+  }, [open]);
 
   // Fetch full employee details (includes salary) when modal opens
   useEffect(() => {
@@ -59,9 +61,14 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
   };
 
   const handleDownloadQR = () => {
-    if (qrCodeDataURL) {
-      downloadQRCode(qrCodeDataURL, `employee-${employee.employee_id}-qr.png`);
-    }
+    if (!qrImage) return;
+    // Create a temporary link to download the QR image
+    const link = document.createElement('a');
+    link.href = qrImage;
+    link.download = `employee-${employee.employee_id}-qr.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleSelectFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,7 +91,7 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
       {
         onSuccess: async (resp) => {
           // resp contains qr_code_image and metrics
-          setQrImage(resp.qr_code_image);
+          setQrImage(normalizeQrImage(resp.qr_code_image));
           toast({ title: "Biometrics uploaded", description: "QR code generated successfully." });
           // refetch details to update biometric_status
           try {
@@ -203,13 +210,11 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
               <div className="bg-white p-4 rounded-lg" data-testid="qr-code-container">
                 {qrImage ? (
                   <img src={qrImage} alt="QR Code" className="w-32 h-32" />
-                ) : qrCodeDataURL ? (
-                  <img src={qrCodeDataURL} alt={`QR Code for ${employee.first_name} ${employee.last_name}`} className="w-32 h-32" />
                 ) : (
                   <div className="w-32 h-32 bg-gray-200 rounded flex items-center justify-center">
                     <div className="text-center">
-                      <div className="w-6 h-6 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                      <p className="text-xs text-gray-500">Generating...</p>
+                      <p className="text-xs text-gray-600">No QR yet</p>
+                      <p className="text-[10px] text-gray-500">Upload a photo to generate</p>
                     </div>
                   </div>
                 )}
@@ -218,17 +223,21 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   <input
+                    ref={fileInputRef}
                     id="biometric-file"
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={handleSelectFile}
                   />
-                  <label htmlFor="biometric-file">
-                    <Button variant="outline" type="button" className="gap-2">
-                      <Upload className="h-4 w-4" /> Choose Photo
-                    </Button>
-                  </label>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="gap-2"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4" /> Choose Photo
+                  </Button>
                   <Button
                     type="button"
                     onClick={handleUploadBiometrics}
@@ -242,7 +251,7 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
                   <p className="text-xs text-muted-foreground mt-1">Selected: {uploadFile.name}</p>
                 )}
                 <div className="mt-4">
-                  <Button onClick={handleDownloadQR} disabled={!qrImage && !qrCodeDataURL} data-testid="button-download-qr">
+                  <Button onClick={handleDownloadQR} disabled={!qrImage} data-testid="button-download-qr">
                     <Download className="h-4 w-4 mr-2" /> Download QR Code
                   </Button>
                 </div>
