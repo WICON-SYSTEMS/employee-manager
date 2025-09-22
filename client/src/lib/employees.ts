@@ -1,11 +1,25 @@
 import { apiCall, apiRequest } from "./queryClient";
 import type { Employee, InsertEmployee, UpdateEmployee, BiometricUploadResponse } from "@shared/schema";
 
-// Get all employees - TEMPORARY: Endpoint not available yet
-export async function getEmployees(): Promise<Employee[]> {
-  // TODO: Replace with actual API call when /v1/admin/employees endpoint is available
-  console.log('Employees list endpoint not available yet - returning empty array');
-  return [];
+// Get all employees (paginated)
+type EmployeesListResponse = {
+  employees: Employee[];
+  pagination: {
+    current_page: number;
+    total_pages: number;
+    total_items: number;
+    items_per_page: number;
+    has_next: boolean;
+    has_previous: boolean;
+  };
+};
+
+export async function getEmployees(page = 1, limit = 50): Promise<Employee[]> {
+  const result = await apiCall<EmployeesListResponse>(
+    "GET",
+    `/v1/admin/employees?page=${page}&limit=${limit}`
+  );
+  return result.employees;
 }
 
 // Get employee by ID

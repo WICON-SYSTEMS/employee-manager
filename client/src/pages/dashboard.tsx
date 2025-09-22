@@ -16,29 +16,25 @@ export default function Dashboard() {
     day: 'numeric'
   });
 
-  // Calculate stats - employees list endpoint not available yet, using mock data
+  // Calculate stats from real employees list
   const employeeList = Array.isArray(employees) ? employees : [];
   const totalEmployees = employeeList.length;
   const activeEmployees = employeeList.filter(emp => emp.status === 'active').length;
-  
-  // Mock data for demo purposes (until employees list endpoint is available)
-  const mockTotalEmployees = totalEmployees || 25;
-  const mockActiveEmployees = activeEmployees || 23;
-  // Mock data for attendance (since we don't have actual attendance tracking yet)
-  const presentToday = Math.floor(mockActiveEmployees * 0.85); // 85% attendance rate
-  const lateArrivals = Math.floor(mockActiveEmployees * 0.08); // 8% late
-  const absentToday = mockActiveEmployees - presentToday; // 5% on leave
+  // Attendance is still mock-calculated based on active employees until real attendance API is available
+  const presentToday = Math.floor(activeEmployees * 0.85); // 85% attendance rate
+  const lateArrivals = Math.floor(activeEmployees * 0.08); // 8% late
+  const absentToday = Math.max(activeEmployees - presentToday, 0);
 
   const stats = [
     {
       title: "Total Employees",
-      value: mockTotalEmployees.toString(),
+      value: totalEmployees.toString(),
       icon: Users,
       color: "bg-blue-500"
     },
     {
       title: "Active Employees",
-      value: mockActiveEmployees.toString(),
+      value: activeEmployees.toString(),
       icon: UserCheck,
       color: "bg-green-500"
     },

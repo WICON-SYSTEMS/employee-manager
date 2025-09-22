@@ -7,7 +7,7 @@ export function useEmployees() {
 
   const { data: employees, isLoading, error } = useQuery({
     queryKey: ["/v1/admin/employees"],
-    queryFn: getEmployees,
+    queryFn: () => getEmployees(1, 50),
   });
 
   const createEmployeeMutation = useMutation({
