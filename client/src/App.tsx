@@ -9,6 +9,8 @@ import Dashboard from "@/pages/dashboard";
 import Employees from "@/pages/employees";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
+import AttendancePage from "@/pages/attendance";
+import ReportsPage from "@/pages/reports";
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -42,14 +44,10 @@ function Router() {
         <ProtectedRoute component={Employees} />
       </Route>
       <Route path="/attendance">
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-muted-foreground">Attendance page coming soon...</p>
-        </div>
+        <ProtectedRoute component={AttendancePage} />
       </Route>
       <Route path="/reports">
-        <div className="min-h-screen flex items-center justify-center">
-          <p className="text-muted-foreground">Reports page coming soon...</p>
-        </div>
+        <ProtectedRoute component={ReportsPage} />
       </Route>
       <Route path="/settings">
         <ProtectedRoute component={Settings} />
