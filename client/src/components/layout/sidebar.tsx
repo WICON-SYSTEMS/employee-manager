@@ -8,7 +8,8 @@ import {
   BarChart3, 
   Settings, 
   Building2,
-  LogOut
+  LogOut,
+  Wallet
 } from "lucide-react";
 
 const navigation = [
@@ -16,6 +17,7 @@ const navigation = [
   { name: "Employees", href: "/employees", icon: Users },
   { name: "Attendance", href: "/attendance", icon: Clock },
   { name: "Reports", href: "/reports", icon: BarChart3 },
+  { name: "Payments", href: "/payments", icon: Wallet },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
