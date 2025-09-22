@@ -4,6 +4,7 @@ import { EmployeeTable } from "@/components/employees/employee-table";
 import { EmployeeModal } from "@/components/employees/employee-modal";
 import { EmployeeDetailModal } from "@/components/employees/employee-detail-modal";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useEmployees } from "@/hooks/use-employees";
 import { useToast } from "@/hooks/use-toast";
 import { Plus } from "lucide-react";
@@ -14,6 +15,8 @@ export default function Employees() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
   const { 
     employees, 
@@ -44,23 +47,22 @@ export default function Employees() {
   };
 
   const handleDeleteEmployee = (employee: Employee) => {
-    if (window.confirm(`Are you sure you want to delete ${employee.first_name} ${employee.last_name}?`)) {
-      deleteEmployee(employee.employee_id, {
-        onSuccess: () => {
-          toast({
-            title: "Success",
-            description: "Employee deleted successfully!",
-          });
-        },
-        onError: (error) => {
-          toast({
-            title: "Error",
-            description: error.message || "Failed to delete employee",
-            variant: "destructive",
-          });
-        }
-      });
-    }
+    setEmployeeToDelete(employee);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!employeeToDelete) return;
+    deleteEmployee(employeeToDelete.employee_id, {
+      onSuccess: () => {
+        setShowDeleteModal(false);
+        setEmployeeToDelete(null);
+        toast({ title: "Deleted", description: `${employeeToDelete.first_name} ${employeeToDelete.last_name} has been removed.` });
+      },
+      onError: (error) => {
+        toast({ title: "Error", description: error.message || "Failed to delete employee", variant: "destructive" });
+      }
+    });
   };
 
   const handleSubmitEmployee = (employeeData: any) => {
@@ -146,6 +148,33 @@ export default function Employees() {
           onEdit={handleEditFromDetail}
           employee={selectedEmployee}
         />
+
+        {/* Delete Confirmation Modal */}
+        <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Delete Employee</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to delete
+                {" "}
+                <span className="font-medium text-foreground">
+                  {employeeToDelete ? `${employeeToDelete.first_name} ${employeeToDelete.last_name}` : "this employee"}
+                </span>
+                ? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleConfirmDelete} data-testid="button-confirm-delete">
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
