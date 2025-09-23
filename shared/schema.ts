@@ -49,6 +49,13 @@ export interface Employee {
   qr_code?: string | null;
   qr_code_image?: string | null;
   qr_code_expires_at?: string | null;
+  // From GET employee by id
+  qr_code_info?: {
+    qr_code: string;
+    qr_code_image: string;
+    is_active: boolean;
+    expires_at: string | null;
+  } | null;
 }
 
 // Auth response types

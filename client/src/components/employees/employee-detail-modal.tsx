@@ -25,6 +25,7 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
   const { uploadBiometrics, isUploadingBiometrics, uploadError } = useEmployees();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showQrLightbox, setShowQrLightbox] = useState(false);
 
   // Clear any previous upload state when reopening
   useEffect(() => {
@@ -63,15 +64,23 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
     details?.biometric_status?.qr_code_generated ??
     (employee.registration_status === 'fully_registered' ? true : undefined);
 
+  // Normalize QR image from details (GET by ID) if present
+  const qrFromDetails = normalizeQrImage(
+    (details?.qr_code_info?.qr_code_image as string | undefined) ||
+    (details?.qr_code_image as string | undefined) ||
+    null
+  );
+
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
 
   const handleDownloadQR = () => {
-    if (!qrImage) return;
+    const src = qrImage || qrFromDetails;
+    if (!src) return;
     // Create a temporary link to download the QR image
     const link = document.createElement('a');
-    link.href = qrImage;
+    link.href = src;
     link.download = `employee-${employee.employee_id}-qr.png`;
     document.body.appendChild(link);
     link.click();
@@ -224,8 +233,8 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="bg-white p-4 rounded-lg" data-testid="qr-code-container">
-                {qrImage ? (
-                  <img src={qrImage} alt="QR Code" className="w-32 h-32" />
+                {qrImage || qrFromDetails ? (
+                  <img src={(qrImage || qrFromDetails) as string} alt="QR Code" className="w-32 h-32" />
                 ) : (
                   <div className="w-32 h-32 bg-gray-200 rounded flex items-center justify-center">
                     <div className="text-center">
@@ -266,13 +275,44 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
                 {uploadFile && (
                   <p className="text-xs text-muted-foreground mt-1">Selected: {uploadFile.name}</p>
                 )}
-                <div className="mt-4">
-                  <Button onClick={handleDownloadQR} disabled={!qrImage} data-testid="button-download-qr">
+                <div className="mt-4 space-y-2">
+                  <Button onClick={handleDownloadQR} disabled={!qrImage && !qrFromDetails} data-testid="button-download-qr">
                     <Download className="h-4 w-4 mr-2" /> Download QR Code
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowQrLightbox(true)}
+                    disabled={!qrImage && !qrFromDetails}
+                    data-testid="button-view-qr"
+                  >
+                    View Full-size QR
+                  </Button>
+                  {(details?.qr_code_info?.expires_at || details?.qr_code_expires_at) && (
+                    <p className="text-xs text-muted-foreground">Expires: {new Date((details?.qr_code_info?.expires_at || details?.qr_code_expires_at) as string).toLocaleString()}</p>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* QR Lightbox */}
+            <Dialog open={showQrLightbox} onOpenChange={setShowQrLightbox}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>QR Code</DialogTitle>
+                </DialogHeader>
+                <div className="flex items-center justify-center p-2">
+                  {(qrImage || qrFromDetails) && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={(qrImage || qrFromDetails) as string}
+                      alt="QR Code Full"
+                      className="w-72 h-72"
+                      data-testid="image-qr-full"
+                    />
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Actions */}
