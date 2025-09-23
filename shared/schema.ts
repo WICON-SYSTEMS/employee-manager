@@ -45,6 +45,10 @@ export interface Employee {
   deactivated_at: string | null;
   created_at: string;
   updated_at: string | null;
+  // Newly exposed from list endpoint
+  qr_code?: string | null;
+  qr_code_image?: string | null;
+  qr_code_expires_at?: string | null;
 }
 
 // Auth response types

@@ -99,6 +99,7 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
               <TableHead className="font-medium text-foreground">ID</TableHead>
               <TableHead className="font-medium text-foreground">Department</TableHead>
               <TableHead className="font-medium text-foreground">Position</TableHead>
+              <TableHead className="font-medium text-foreground">QR</TableHead>
               <TableHead className="font-medium text-foreground">Status</TableHead>
               <TableHead className="text-center font-medium text-foreground">Actions</TableHead>
             </TableRow>
@@ -158,6 +159,13 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
                   </TableCell>
                   <TableCell className="text-foreground" data-testid={`text-position-${employee.employee_id}`}>
                     {employee.position}
+                  </TableCell>
+                  <TableCell>
+                    {employee.qr_code || employee.qr_code_image || employee.registration_status === 'fully_registered' ? (
+                      <Badge variant="default">Generated</Badge>
+                    ) : (
+                      <Badge variant="secondary">Not generated</Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge 
