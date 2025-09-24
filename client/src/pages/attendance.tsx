@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as CalendarIcon, RefreshCcw, Download } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCcw, Download, Eye } from "lucide-react";
 import { useEmployees } from "@/hooks/use-employees";
 import { useToast } from "@/hooks/use-toast";
-import { getAllAttendance, type AttendanceRecord, type ComprehensiveAnalytics } from "@/lib/attendance";
+import { getAllAttendance, getEmployeeAttendance, type AttendanceRecord, type ComprehensiveAnalytics } from "@/lib/attendance";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Helpers
 const formatTime = (iso?: string | null) => (iso ? new Date(iso).toLocaleTimeString() : "-");
@@ -39,6 +40,14 @@ export default function AttendancePage() {
     average_hours_per_employee: number;
   }>>([]);
 
+  // History modal state
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyEmployeeId, setHistoryEmployeeId] = useState<string>("");
+  const [historyStartDate, setHistoryStartDate] = useState<string>("");
+  const [historyEndDate, setHistoryEndDate] = useState<string>("");
+  const [historyRows, setHistoryRows] = useState<AttendanceRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const employeeMap = useMemo(() => new Map(employees.map(e => [e.employee_id, e])), [employees]);
   const selectedEmployee = selectedEmployeeId ? employeeMap.get(selectedEmployeeId) : undefined;
 
@@ -50,6 +59,45 @@ export default function AttendancePage() {
     setTimeout(() => {
       handleRefresh();
     }, 0);
+  };
+
+  // History helpers
+  const openHistory = async (employeeId: string) => {
+    setHistoryEmployeeId(employeeId);
+    setHistoryOpen(true);
+    await refreshHistory(employeeId);
+  };
+
+  const refreshHistory = async (employeeId?: string) => {
+    if (!(employeeId || historyEmployeeId)) return;
+    try {
+      setHistoryLoading(true);
+      const data = await getEmployeeAttendance(employeeId || historyEmployeeId, historyStartDate || undefined, historyEndDate || undefined);
+      setHistoryRows(data.attendance_records || []);
+    } catch (e: any) {
+      toast({ title: "Failed to load history", description: e?.message || "Could not fetch employee attendance", variant: "destructive" });
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const exportHistoryCsv = () => {
+    if (!historyRows.length) {
+      toast({ title: "No data", description: "No history to export.", variant: "destructive" });
+      return;
+    }
+    const headers = ["attendance_id","employee_id","date","check_in_time","check_out_time","hours_worked","status","qr_code_scanned","created_at","updated_at"];
+    const toCsvValue = (v: unknown) => `"${(v ?? "").toString().replace(/"/g,'""')}"`;
+    const csv = [headers, ...historyRows.map(r => [r.attendance_id, r.employee_id, r.date, r.check_in_time, r.check_out_time, r.hours_worked ?? "", r.status, r.qr_code_scanned ?? "", r.created_at, r.updated_at ?? ""])].map(r => r.map(toCsvValue).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attendance_${historyEmployeeId}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Auto-fetch on initial mount
@@ -283,7 +331,11 @@ export default function AttendancePage() {
                       : 'px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700';
                     return (
                       <tr key={r.attendance_id} className="border-b last:border-b-0">
-                        <td className="p-4 font-medium">{name}</td>
+                        <td className="p-4 font-medium">
+                          <button className="text-primary hover:underline inline-flex items-center gap-1" onClick={() => openHistory(r.employee_id)} title="View attendance history">
+                            <Eye className="w-4 h-4" /> {name}
+                          </button>
+                        </td>
                         <td className="p-4">{dept}</td>
                         <td className="p-4">
                           <span className={badgeClass}>{r.status}</span>
@@ -307,6 +359,67 @@ export default function AttendancePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Attendance History Modal */}
+        <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Attendance History</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
+                <div>
+                  <label className="text-sm text-muted-foreground">Start date</label>
+                  <Input type="date" value={historyStartDate} onChange={(e) => setHistoryStartDate(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">End date</label>
+                  <Input type="date" value={historyEndDate} onChange={(e) => setHistoryEndDate(e.target.value)} />
+                </div>
+                <div className="flex items-end gap-2">
+                  <Button variant="outline" onClick={() => refreshHistory()} disabled={historyLoading} className="w-full">
+                    <RefreshCcw className={"w-4 h-4 mr-2" + (historyLoading ? " animate-spin" : "")} /> {historyLoading ? "Loading..." : "Refresh"}
+                  </Button>
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={exportHistoryCsv} className="w-full"><Download className="w-4 h-4 mr-2" /> Export CSV</Button>
+                </div>
+              </div>
+              <div className="overflow-x-auto border rounded-md">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Date</th>
+                      <th className="text-left p-3 font-medium">Check-in</th>
+                      <th className="text-left p-3 font-medium">Check-out</th>
+                      <th className="text-left p-3 font-medium">Hours</th>
+                      <th className="text-left p-3 font-medium">Status</th>
+                      <th className="text-left p-3 font-medium">QR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyLoading ? (
+                      <tr><td className="p-4" colSpan={6}>Loading...</td></tr>
+                    ) : historyRows.length === 0 ? (
+                      <tr><td className="p-4 text-muted-foreground" colSpan={6}>No records.</td></tr>
+                    ) : (
+                      historyRows.map((h) => (
+                        <tr key={h.attendance_id} className="border-b last:border-b-0">
+                          <td className="p-3">{formatDate(h.date)}</td>
+                          <td className="p-3">{formatTime(h.check_in_time)}</td>
+                          <td className="p-3">{formatTime(h.check_out_time)}</td>
+                          <td className="p-3">{h.hours_worked ?? '-'}</td>
+                          <td className="p-3">{h.status}</td>
+                          <td className="p-3">{h.qr_code_scanned || '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
