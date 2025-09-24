@@ -158,7 +158,7 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
           {/* Employee Header */}
           <div className="flex items-start gap-6">
             <Avatar className="w-24 h-24">
-              <AvatarImage src="" alt={`${employee.first_name} ${employee.last_name}`} />
+              <AvatarImage src={(details as any)?.image_url || (employee as any)?.image_url || ""} alt={`${employee.first_name} ${employee.last_name}`} className="object-cover" />
               <AvatarFallback className="bg-muted text-2xl">
                 {getInitials(employee.first_name, employee.last_name)}
               </AvatarFallback>

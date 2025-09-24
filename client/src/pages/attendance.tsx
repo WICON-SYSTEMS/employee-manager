@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar as CalendarIcon, RefreshCcw, Download, Eye } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEmployees } from "@/hooks/use-employees";
 import { useToast } from "@/hooks/use-toast";
 import { getAllAttendance, getEmployeeAttendance, type AttendanceRecord, type ComprehensiveAnalytics } from "@/lib/attendance";
@@ -325,6 +326,8 @@ export default function AttendancePage() {
                   {filtered.map((r) => {
                     const emp = employeeMap.get(r.employee_id);
                     const name = r.employee_name || (emp ? `${emp.first_name} ${emp.last_name}` : r.employee_id);
+                    const imageUrl = (emp as any)?.image_url || "";
+                    const initials = emp ? `${emp.first_name[0]}${emp.last_name[0]}`.toUpperCase() : (r.employee_name ? r.employee_name[0] : '?');
                     const dept = r.department || emp?.department || "-";
                     const badgeClass = r.status === 'checked_out'
                       ? 'px-2 py-1 rounded-full text-xs bg-green-100 text-green-700'
@@ -332,9 +335,15 @@ export default function AttendancePage() {
                     return (
                       <tr key={r.attendance_id} className="border-b last:border-b-0">
                         <td className="p-4 font-medium">
-                          <button className="text-primary hover:underline inline-flex items-center gap-1" onClick={() => openHistory(r.employee_id)} title="View attendance history">
-                            <Eye className="w-4 h-4" /> {name}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="w-8 h-8">
+                              <AvatarImage src={imageUrl} alt={name} />
+                              <AvatarFallback className="bg-muted text-xs">{initials}</AvatarFallback>
+                            </Avatar>
+                            <button className="text-primary hover:underline inline-flex items-center gap-1" onClick={() => openHistory(r.employee_id)} title="View attendance history">
+                              <Eye className="w-4 h-4" /> {name}
+                            </button>
+                          </div>
                         </td>
                         <td className="p-4">{dept}</td>
                         <td className="p-4">

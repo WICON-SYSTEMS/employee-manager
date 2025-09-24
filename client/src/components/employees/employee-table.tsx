@@ -136,7 +136,7 @@ export function EmployeeTable({ employees, onView, onEdit, onDelete, isLoading }
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="w-10 h-10">
-                        <AvatarImage src="" alt={`${employee.first_name} ${employee.last_name}`} />
+                        <AvatarImage src={employee.image_url || ""} alt={`${employee.first_name} ${employee.last_name}`} />
                         <AvatarFallback className="bg-muted">
                           {getInitials(employee.first_name, employee.last_name)}
                         </AvatarFallback>

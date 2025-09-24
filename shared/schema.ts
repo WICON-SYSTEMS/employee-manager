@@ -49,6 +49,8 @@ export interface Employee {
   qr_code?: string | null;
   qr_code_image?: string | null;
   qr_code_expires_at?: string | null;
+  // New: profile image URL from backend
+  image_url?: string | null;
   // From GET employee by id
   qr_code_info?: {
     qr_code: string;
