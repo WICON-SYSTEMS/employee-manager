@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useEmployees } from "@/hooks/use-employees";
 import { Users, UserCheck, Clock, Calendar, RefreshCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { getAttendanceTrends, getAllAttendance, type AttendanceRecord } from "@/lib/attendance";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from "recharts";
@@ -177,11 +178,21 @@ export default function Dashboard() {
     <DashboardLayout>
       <div className="p-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {user?.full_name || 'Admin'}!
-          </h1>
-          <p className="text-muted-foreground mt-2">Today is {dateString}</p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">
+              Welcome back, {user?.full_name || 'Admin'}!
+            </h1>
+            <p className="text-muted-foreground mt-2">Today is {dateString}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastUpdated && (
+              <span className="text-xs text-muted-foreground">Last updated: {lastUpdated}</span>
+            )}
+            <Button variant="outline" className="gap-2" onClick={handleRefresh} disabled={loadingTrends || loadingRecent}>
+              <RefreshCcw className={"w-4 h-4" + ((loadingTrends || loadingRecent) ? " animate-spin" : "")} /> {loadingTrends || loadingRecent ? "Refreshing..." : "Refresh"}
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
