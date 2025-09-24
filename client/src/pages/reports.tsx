@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar as CalendarIcon, BarChart3, Download, RefreshCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { getComprehensiveAnalytics, type ComprehensiveAnalytics } from "@/lib/attendance";
+import { getComprehensiveAnalytics, getAttendanceTrends, type ComprehensiveAnalytics, type AttendanceTrends } from "@/lib/attendance";
 
 type SimpleDateRange = { from?: string; to?: string };
 
@@ -19,6 +19,9 @@ export default function ReportsPage() {
   });
   const [analytics, setAnalytics] = useState<ComprehensiveAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
+  const [trends, setTrends] = useState<AttendanceTrends | null>(null);
+  const [trendsDays, setTrendsDays] = useState<string>("30");
+  const [loadingTrends, setLoadingTrends] = useState(false);
 
   const handleGenerate = async () => {
     try {
@@ -36,8 +39,22 @@ export default function ReportsPage() {
   // Auto-fetch on initial mount
   useEffect(() => {
     handleGenerate();
+    handleLoadTrends();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleLoadTrends = async () => {
+    try {
+      setLoadingTrends(true);
+      const data = await getAttendanceTrends(Number(trendsDays) || 30);
+      setTrends(data);
+      toast({ title: "Trends loaded", description: data.period });
+    } catch (e: any) {
+      toast({ title: "Failed to load trends", description: e?.message || "Could not fetch trends", variant: "destructive" });
+    } finally {
+      setLoadingTrends(false);
+    }
+  };
 
   const handleExport = () => {
     if (!analytics) {
@@ -119,6 +136,84 @@ export default function ReportsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Pick a start and end date then click Generate.</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Trends */}
+        <Card className="shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Trends</CardTitle>
+              <div className="flex items-center gap-2">
+                <Select value={trendsDays} onValueChange={(v) => setTrendsDays(v)}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue placeholder="Days" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">Last 7 days</SelectItem>
+                    <SelectItem value="14">Last 14 days</SelectItem>
+                    <SelectItem value="30">Last 30 days</SelectItem>
+                    <SelectItem value="60">Last 60 days</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" onClick={handleLoadTrends} disabled={loadingTrends}>
+                  <RefreshCcw className={"w-4 h-4 mr-1" + (loadingTrends ? " animate-spin" : "")} />
+                  {loadingTrends ? "Loading..." : "Refresh"}
+                </Button>
+                <Button size="sm" onClick={() => {
+                  if (!trends) { toast({ title: "No data", description: "Load trends first.", variant: "destructive" }); return; }
+                  const headers = ["date","total_employees","present","late","absent","checked_out","still_checked_in"];
+                  const toCsvValue = (v: unknown) => `"${(v ?? "").toString().replace(/"/g,'""')}"`;
+                  const rows = trends.daily_trends.map(d => [d.date, d.total_employees, d.present, d.late, d.absent, d.checked_out, d.still_checked_in]);
+                  const csv = [headers, ...rows].map(r => r.map(toCsvValue).join(',')).join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `trends_${trends.start_date}_${trends.end_date}.csv`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}>
+                  <Download className="w-4 h-4 mr-1" /> Export
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">{trends ? `${trends.start_date} → ${trends.end_date}` : "Select a range and refresh."}</p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-muted-foreground">
+                  <tr>
+                    <th className="text-left p-3 font-medium">Date</th>
+                    <th className="text-left p-3 font-medium">Present</th>
+                    <th className="text-left p-3 font-medium">Late</th>
+                    <th className="text-left p-3 font-medium">Absent</th>
+                    <th className="text-left p-3 font-medium">Checked-out</th>
+                    <th className="text-left p-3 font-medium">Still in</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(trends?.daily_trends || []).map((d) => (
+                    <tr key={d.date} className="border-b last:border-b-0">
+                      <td className="p-3 whitespace-nowrap">{d.date}</td>
+                      <td className="p-3">{d.present}</td>
+                      <td className="p-3">{d.late}</td>
+                      <td className="p-3">{d.absent}</td>
+                      <td className="p-3">{d.checked_out}</td>
+                      <td className="p-3">{d.still_checked_in}</td>
+                    </tr>
+                  ))}
+                  {(!trends || trends.daily_trends.length === 0) && (
+                    <tr>
+                      <td className="p-6 text-muted-foreground" colSpan={6}>No trends data.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>

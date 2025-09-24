@@ -18,6 +18,41 @@ export interface AttendanceRecord {
   department?: string;
 }
 
+// Trends
+export interface AttendanceTrends {
+  period: string;
+  start_date: string;
+  end_date: string;
+  daily_trends: Array<{
+    date: string;
+    total_employees: number;
+    present: number;
+    late: number;
+    absent: number;
+    checked_out: number;
+    still_checked_in: number;
+    total_hours_worked: number;
+    average_hours_per_employee: number;
+  }>;
+  trend_summary: {
+    average_attendance_rate: number;
+    average_punctuality_rate: number;
+    total_days_analyzed: number;
+  };
+}
+
+export async function getAttendanceTrends(days: number): Promise<AttendanceTrends> {
+  const params = new URLSearchParams();
+  params.set("days", String(days));
+  const url = `/v1/attendance/analytics/trends?${params.toString()}`;
+  const res = await apiRequest("GET", url);
+  const json = (await res.json()) as ApiResponse<AttendanceTrends>;
+  if (json.status !== "success") {
+    throw new Error(json.message || "Failed to fetch trends");
+  }
+  return json.data;
+}
+
 export interface EmployeeAttendanceResponse {
   attendance_records: AttendanceRecord[];
   total_records: number;
