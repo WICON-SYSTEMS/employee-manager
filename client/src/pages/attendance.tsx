@@ -26,6 +26,17 @@ export default function AttendancePage() {
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [analytics, setAnalytics] = useState<ComprehensiveAnalytics | null>(null);
+  const [dailyBreakdown, setDailyBreakdown] = useState<Array<{
+    date: string;
+    total_employees: number;
+    present: number;
+    late: number;
+    absent: number;
+    checked_out: number;
+    still_checked_in: number;
+    total_hours_worked: number;
+    average_hours_per_employee: number;
+  }>>([]);
 
   const employeeMap = useMemo(() => new Map(employees.map(e => [e.employee_id, e])), [employees]);
   const selectedEmployee = selectedEmployeeId ? employeeMap.get(selectedEmployeeId) : undefined;
@@ -41,10 +52,11 @@ export default function AttendancePage() {
         employee_id: selectedEmployeeId || undefined,
         status: status !== 'all' ? status : undefined,
         include_analytics: true,
-        include_trends: false,
+        include_trends: true,
       });
       setRows(resp.attendance_records);
       setAnalytics(resp.comprehensive_analytics || null);
+      setDailyBreakdown(resp.daily_breakdown || []);
       toast({ title: "Attendance loaded", description: `${resp.pagination?.total_items ?? resp.attendance_records.length} records retrieved.` });
     } catch (e: any) {
       toast({ title: "Failed to load", description: e?.message || "Could not fetch attendance", variant: "destructive" });
@@ -81,9 +93,12 @@ export default function AttendancePage() {
     return matchesQuery && matchesStatus;
   });
 
-  const presentCount = analytics?.overall_summary?.total_present_days ?? filtered.length;
-  const lateCount = analytics?.overall_summary?.total_late_days ?? 0;
-  const absentCount = analytics?.overall_summary?.total_absent_days ?? 0;
+  // Compute cards from daily_breakdown for selected day (endDate or today)
+  const targetDay = (endDate || new Date().toISOString().slice(0,10));
+  const dayRow = dailyBreakdown.find(d => d.date === targetDay);
+  const presentCount = dayRow?.present ?? filtered.length;
+  const lateCount = dayRow?.late ?? 0;
+  const absentCount = dayRow?.absent ?? 0;
 
   return (
     <DashboardLayout>
