@@ -7,13 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar as CalendarIcon, RefreshCcw, Download } from "lucide-react";
 import { useEmployees } from "@/hooks/use-employees";
 import { useToast } from "@/hooks/use-toast";
-import { getEmployeeAttendance, type AttendanceRecord } from "@/lib/attendance";
+import { getAllAttendance, type AttendanceRecord, type ComprehensiveAnalytics } from "@/lib/attendance";
 
 // Helpers
 const formatTime = (iso?: string | null) => (iso ? new Date(iso).toLocaleTimeString() : "-");
 const formatDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : "-");
 
 export default function AttendancePage() {
+  const ALL_EMP_VALUE = "__ALL__";
   const { employees, isLoading: isLoadingEmployees } = useEmployees();
   const { toast } = useToast();
 
@@ -24,20 +25,27 @@ export default function AttendancePage() {
   const [status, setStatus] = useState<string>("all");
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [analytics, setAnalytics] = useState<ComprehensiveAnalytics | null>(null);
 
   const employeeMap = useMemo(() => new Map(employees.map(e => [e.employee_id, e])), [employees]);
   const selectedEmployee = selectedEmployeeId ? employeeMap.get(selectedEmployeeId) : undefined;
 
   const handleRefresh = async () => {
-    if (!selectedEmployeeId) {
-      toast({ title: "Select employee", description: "Choose an employee to load attendance.", variant: "destructive" });
-      return;
-    }
     try {
       setLoading(true);
-      const data = await getEmployeeAttendance(selectedEmployeeId, startDate || undefined, endDate || undefined);
-      setRows(data.attendance_records);
-      toast({ title: "Attendance loaded", description: `${data.total_records} records retrieved.` });
+      const resp = await getAllAttendance({
+        page: 1,
+        limit: 20,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+        employee_id: selectedEmployeeId || undefined,
+        status: status !== 'all' ? status : undefined,
+        include_analytics: true,
+        include_trends: false,
+      });
+      setRows(resp.attendance_records);
+      setAnalytics(resp.comprehensive_analytics || null);
+      toast({ title: "Attendance loaded", description: `${resp.pagination?.total_items ?? resp.attendance_records.length} records retrieved.` });
     } catch (e: any) {
       toast({ title: "Failed to load", description: e?.message || "Could not fetch attendance", variant: "destructive" });
     } finally {
@@ -73,9 +81,9 @@ export default function AttendancePage() {
     return matchesQuery && matchesStatus;
   });
 
-  const presentCount = filtered.length; // records returned are present/check-in based
-  const lateCount = 0; // backend may add lateness later
-  const absentCount = 0;
+  const presentCount = analytics?.overall_summary?.total_present_days ?? filtered.length;
+  const lateCount = analytics?.overall_summary?.total_late_days ?? 0;
+  const absentCount = analytics?.overall_summary?.total_absent_days ?? 0;
 
   return (
     <DashboardLayout>
@@ -105,12 +113,13 @@ export default function AttendancePage() {
                 <Input placeholder="Search employee..." value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Employee</label>
-                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+                <label className="text-sm text-muted-foreground">Employee (optional)</label>
+                <Select value={selectedEmployeeId || ALL_EMP_VALUE} onValueChange={(v) => setSelectedEmployeeId(v === ALL_EMP_VALUE ? "" : v)}>
                   <SelectTrigger>
-                    <SelectValue placeholder={isLoadingEmployees ? "Loading employees..." : "Select employee"} />
+                    <SelectValue placeholder={isLoadingEmployees ? "Loading employees..." : "All employees"} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={ALL_EMP_VALUE}>All employees</SelectItem>
                     {employees.map(e => (
                       <SelectItem key={e.employee_id} value={e.employee_id}>
                         {e.first_name} {e.last_name} ({e.employee_code})
@@ -177,7 +186,9 @@ export default function AttendancePage() {
         {/* Table */}
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Employee Attendance{selectedEmployee ? ` – ${selectedEmployee.first_name} ${selectedEmployee.last_name}` : ""}</CardTitle>
+            <CardTitle>
+              Attendance {selectedEmployee ? `– ${selectedEmployee.first_name} ${selectedEmployee.last_name}` : "(All)"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -196,8 +207,8 @@ export default function AttendancePage() {
                 <tbody>
                   {filtered.map((r) => {
                     const emp = employeeMap.get(r.employee_id);
-                    const name = emp ? `${emp.first_name} ${emp.last_name}` : r.employee_id;
-                    const dept = emp?.department || "-";
+                    const name = r.employee_name || (emp ? `${emp.first_name} ${emp.last_name}` : r.employee_id);
+                    const dept = r.department || emp?.department || "-";
                     const badgeClass = r.status === 'checked_out'
                       ? 'px-2 py-1 rounded-full text-xs bg-green-100 text-green-700'
                       : 'px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700';
