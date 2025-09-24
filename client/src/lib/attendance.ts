@@ -18,6 +18,46 @@ export interface AttendanceRecord {
   department?: string;
 }
 
+// Employee analytics (per-employee comprehensive analytics)
+export interface EmployeeAnalyticsResponse {
+  employee_statistics: {
+    employee_id: string;
+    employee_name: string;
+    employee_code: string;
+    department: string;
+    total_days_present: number;
+    total_days_late: number;
+    total_days_absent: number;
+    total_days_partial: number;
+    total_hours_worked: number;
+    average_hours_per_day: number;
+    attendance_percentage: number;
+    punctuality_percentage: number;
+    last_attendance_date: string | null;
+    current_status: string;
+    working_days_in_period: number;
+  };
+  attendance_records: AttendanceRecord[];
+  period_summary: { start_date: string; end_date: string; total_records: number };
+}
+
+export async function getEmployeeAnalytics(
+  employeeId: string,
+  start_date?: string,
+  end_date?: string
+): Promise<EmployeeAnalyticsResponse> {
+  const params = new URLSearchParams();
+  if (start_date) params.set("start_date", start_date);
+  if (end_date) params.set("end_date", end_date);
+  const url = `/v1/attendance/analytics/employee/${encodeURIComponent(employeeId)}${params.toString() ? `?${params.toString()}` : ''}`;
+  const res = await apiRequest("GET", url);
+  const json = (await res.json()) as ApiResponse<EmployeeAnalyticsResponse>;
+  if (json.status !== "success") {
+    throw new Error(json.message || "Failed to fetch employee analytics");
+  }
+  return json.data;
+}
+
 // Trends
 export interface AttendanceTrends {
   period: string;

@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar as CalendarIcon, BarChart3, Download, RefreshCcw } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { useToast } from "@/hooks/use-toast";
-import { getComprehensiveAnalytics, getAttendanceTrends, type ComprehensiveAnalytics, type AttendanceTrends } from "@/lib/attendance";
+import { getComprehensiveAnalytics, getAttendanceTrends, getEmployeeAnalytics, type ComprehensiveAnalytics, type AttendanceTrends, type EmployeeAnalyticsResponse } from "@/lib/attendance";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type SimpleDateRange = { from?: string; to?: string };
 
@@ -55,6 +56,16 @@ export default function ReportsPage() {
   const [trendsView, setTrendsView] = useState<"table" | "chart">("chart");
   const [useRangeForTrends, setUseRangeForTrends] = useState<boolean>(false);
   const [summaryView, setSummaryView] = useState<"table" | "chart">("table");
+  // Employee analytics modal state
+  const [empOpen, setEmpOpen] = useState(false);
+  const [empLoading, setEmpLoading] = useState(false);
+  const [empId, setEmpId] = useState<string>("");
+  const [empName, setEmpName] = useState<string>("");
+  const [empCode, setEmpCode] = useState<string>("");
+  const [empDept, setEmpDept] = useState<string>("");
+  const [empStart, setEmpStart] = useState<string>("");
+  const [empEnd, setEmpEnd] = useState<string>("");
+  const [empData, setEmpData] = useState<EmployeeAnalyticsResponse | null>(null);
 
   const handleGenerate = async () => {
     try {
@@ -67,62 +78,46 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-
-function TrendsChart({ trends }: { trends: AttendanceTrends | null }) {
-  const data = trends?.daily_trends || [];
-  const width = 800;
-  const height = 220;
-  const padding = 36;
-  const innerW = width - padding * 2;
-  const innerH = height - padding * 2;
-  const n = data.length || 1;
-  const maxY = Math.max(1, ...data.map(d => Math.max(d.present, d.absent)));
-  const x = (i: number) => padding + (i / Math.max(1, n - 1)) * innerW;
-  const y = (v: number) => padding + innerH - (v / maxY) * innerH;
-
-  const toPath = (series: (d: typeof data[number]) => number) => {
-    return data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(series(d))}`).join(' ');
   };
 
-  const presentPath = toPath(d => d.present);
-  const absentPath = toPath(d => d.absent);
+  const openEmployeeAnalytics = async (row: { employee_id: string; employee_name: string; employee_code: string; department: string; }) => {
+    setEmpId(row.employee_id);
+    setEmpName(row.employee_name);
+    setEmpCode(row.employee_code);
+    setEmpDept(row.department);
+    setEmpOpen(true);
+    await refreshEmployeeAnalytics(row.employee_id);
+  };
 
-  return (
-    <div className="w-full overflow-x-auto">
-      <svg width={width} height={height} className="rounded border border-border bg-background">
-        {/* Axes */}
-        <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#e5e7eb" />
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#e5e7eb" />
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((t, i) => (
-          <line key={i} x1={padding} x2={width - padding} y1={padding + innerH * (1 - t)} y2={padding + innerH * (1 - t)} stroke="#f1f5f9" />
-        ))}
-        {/* Paths */}
-        <path d={presentPath} fill="none" stroke="#16a34a" strokeWidth={2} />
-        <path d={absentPath} fill="none" stroke="#ef4444" strokeWidth={2} />
-        {/* Points */}
-        {data.map((d, i) => (
-          <circle key={`p-${i}`} cx={x(i)} cy={y(d.present)} r={2} fill="#16a34a" />
-        ))}
-        {data.map((d, i) => (
-          <circle key={`a-${i}`} cx={x(i)} cy={y(d.absent)} r={2} fill="#ef4444" />
-        ))}
-        {/* Y-axis max label */}
-        <text x={padding - 8} y={padding + 4} textAnchor="end" fontSize={10} fill="#64748b">{maxY}</text>
-        {/* Legend */}
-        <g transform={`translate(${padding}, ${padding - 12})`}>
-          <circle cx={0} cy={0} r={4} fill="#16a34a" />
-          <text x={8} y={3} fontSize={12} fill="#475569">Present</text>
-          <circle cx={80} cy={0} r={4} fill="#ef4444" />
-          <text x={88} y={3} fontSize={12} fill="#475569">Absent</text>
-        </g>
-      </svg>
-      {!data.length && (
-        <p className="text-sm text-muted-foreground mt-2">No trends data to display.</p>
-      )}
-    </div>
-  );
-}
+  const refreshEmployeeAnalytics = async (id?: string) => {
+    const target = id || empId;
+    if (!target) return;
+    try {
+      setEmpLoading(true);
+      const data = await getEmployeeAnalytics(target, empStart || undefined, empEnd || undefined);
+      setEmpData(data);
+    } catch (e: any) {
+      toast({ title: "Failed to load employee analytics", description: e?.message || "Could not fetch analytics", variant: "destructive" });
+    } finally {
+      setEmpLoading(false);
+    }
+  };
+
+  const exportEmployeeAnalyticsCsv = () => {
+    if (!empData) { toast({ title: "No data", description: "Load analytics first.", variant: "destructive" }); return; }
+    const headers = ["attendance_id","employee_id","date","check_in_time","check_out_time","hours_worked","status","qr_code_scanned","created_at","updated_at"];
+    const toCsvValue = (v: unknown) => `"${(v ?? "").toString().replace(/"/g,'""')}"`;
+    const rows = empData.attendance_records.map(r => [r.attendance_id, r.employee_id, r.date, r.check_in_time, r.check_out_time, r.hours_worked ?? "", r.status, r.qr_code_scanned ?? "", r.created_at, r.updated_at ?? ""]);
+    const csv = [headers, ...rows].map(r => r.map(toCsvValue).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `employee_${empCode || empId}_attendance.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   // Auto-fetch on initial mount
@@ -235,6 +230,77 @@ function TrendsChart({ trends }: { trends: AttendanceTrends | null }) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Employee Analytics Modal */}
+        <Dialog open={empOpen} onOpenChange={setEmpOpen}>
+          <DialogContent className="max-w-5xl">
+            <DialogHeader>
+              <DialogTitle>Employee Analytics – {empName} ({empCode}) • {empDept}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
+                <div>
+                  <label className="text-sm text-muted-foreground">Start date</label>
+                  <Input type="date" value={empStart} onChange={(e) => setEmpStart(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground">End date</label>
+                  <Input type="date" value={empEnd} onChange={(e) => setEmpEnd(e.target.value)} />
+                </div>
+                <div className="flex items-end gap-2">
+                  <Button variant="outline" onClick={() => refreshEmployeeAnalytics()} disabled={empLoading} className="w-full">
+                    <RefreshCcw className={"w-4 h-4 mr-2" + (empLoading ? " animate-spin" : "")} /> {empLoading ? "Loading..." : "Refresh"}
+                  </Button>
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={exportEmployeeAnalyticsCsv} className="w-full"><Download className="w-4 h-4 mr-2" /> Export CSV</Button>
+                </div>
+              </div>
+
+              {/* KPI cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card className="shadow-sm"><CardHeader><CardTitle>Present Days</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-green-600">{empData?.employee_statistics.total_days_present ?? 0}</div></CardContent></Card>
+                <Card className="shadow-sm"><CardHeader><CardTitle>Late Days</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-yellow-600">{empData?.employee_statistics.total_days_late ?? 0}</div></CardContent></Card>
+                <Card className="shadow-sm"><CardHeader><CardTitle>Absent Days</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-red-600">{empData?.employee_statistics.total_days_absent ?? 0}</div></CardContent></Card>
+                <Card className="shadow-sm"><CardHeader><CardTitle>Total Hours</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{empData?.employee_statistics.total_hours_worked ?? 0}</div></CardContent></Card>
+              </div>
+
+              {/* Records table */}
+              <div className="overflow-x-auto border rounded-md">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="text-left p-3 font-medium">Date</th>
+                      <th className="text-left p-3 font-medium">Check-in</th>
+                      <th className="text-left p-3 font-medium">Check-out</th>
+                      <th className="text-left p-3 font-medium">Hours</th>
+                      <th className="text-left p-3 font-medium">Status</th>
+                      <th className="text-left p-3 font-medium">QR</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {empLoading ? (
+                      <tr><td className="p-4" colSpan={6}>Loading...</td></tr>
+                    ) : !empData || empData.attendance_records.length === 0 ? (
+                      <tr><td className="p-4 text-muted-foreground" colSpan={6}>No records.</td></tr>
+                    ) : (
+                      empData.attendance_records.map((r) => (
+                        <tr key={r.attendance_id} className="border-b last:border-b-0">
+                          <td className="p-3">{new Date(r.date).toLocaleDateString()}</td>
+                          <td className="p-3">{r.check_in_time ? new Date(r.check_in_time).toLocaleTimeString() : '-'}</td>
+                          <td className="p-3">{r.check_out_time ? new Date(r.check_out_time).toLocaleTimeString() : '-'}</td>
+                          <td className="p-3">{r.hours_worked ?? '-'}</td>
+                          <td className="p-3">{r.status}</td>
+                          <td className="p-3">{r.qr_code_scanned || '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Trends */}
         <Card className="shadow-sm">
@@ -432,15 +498,19 @@ function TrendsChart({ trends }: { trends: AttendanceTrends | null }) {
                   </thead>
                   <tbody>
                     {filtered.map((row) => (
-                      <tr key={row.employee_id} className="border-b last:border-b-0">
-                        <td className="p-4 font-medium">{row.employee_name} ({row.employee_code})</td>
-                        <td className="p-4">{row.department}</td>
-                        <td className="p-4">{row.total_days_present}</td>
-                        <td className="p-4">{row.total_days_late}</td>
-                        <td className="p-4">{row.total_days_absent}</td>
-                        <td className="p-4">{row.total_hours_worked}</td>
-                      </tr>
-                    ))}
+                    <tr key={row.employee_id} className="border-b last:border-b-0">
+                      <td className="p-4 font-medium">
+                        <button className="text-primary hover:underline" onClick={() => openEmployeeAnalytics(row)}>
+                          {row.employee_name} ({row.employee_code})
+                        </button>
+                      </td>
+                      <td className="p-4">{row.department}</td>
+                      <td className="p-4">{row.total_days_present}</td>
+                      <td className="p-4">{row.total_days_late}</td>
+                      <td className="p-4">{row.total_days_absent}</td>
+                      <td className="p-4">{row.total_hours_worked}</td>
+                    </tr>
+                  ))}
                     {filtered.length === 0 && (
                       <tr>
                         <td className="p-6 text-muted-foreground" colSpan={6}>
