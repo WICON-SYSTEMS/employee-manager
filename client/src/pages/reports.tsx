@@ -5,57 +5,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar as CalendarIcon, BarChart3, Download, RefreshCcw } from "lucide-react";
+import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { useToast } from "@/hooks/use-toast";
 import { getComprehensiveAnalytics, getAttendanceTrends, type ComprehensiveAnalytics, type AttendanceTrends } from "@/lib/attendance";
 
 type SimpleDateRange = { from?: string; to?: string };
 
-// Inline chart component for trends (Present vs Absent)
+// Recharts-based trends chart (multi-series)
 function TrendsChart({ trends }: { trends: AttendanceTrends | null }) {
-  const data = trends?.daily_trends || [];
-  const width = 800;
-  const height = 220;
-  const padding = 36;
-  const innerW = width - padding * 2;
-  const innerH = height - padding * 2;
-  const n = data.length || 1;
-  const maxY = Math.max(1, ...data.map(d => Math.max(d.present, d.absent)));
-  const x = (i: number) => padding + (i / Math.max(1, n - 1)) * innerW;
-  const y = (v: number) => padding + innerH - (v / maxY) * innerH;
-
-  const toPath = (series: (d: typeof data[number]) => number) =>
-    data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(series(d))}`).join(' ');
-
-  const presentPath = toPath(d => d.present);
-  const absentPath = toPath(d => d.absent);
-
+  const data = (trends?.daily_trends || []).map(d => ({
+    date: d.date,
+    present: d.present,
+    absent: d.absent,
+    checked_out: d.checked_out,
+    still_in: d.still_checked_in,
+  }));
   return (
-    <div className="w-full overflow-x-auto">
-      <svg width={width} height={height} className="rounded border border-border bg-background">
-        <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#e5e7eb" />
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#e5e7eb" />
-        {[0, 0.25, 0.5, 0.75, 1].map((t, i) => (
-          <line key={i} x1={padding} x2={width - padding} y1={padding + innerH * (1 - t)} y2={padding + innerH * (1 - t)} stroke="#f1f5f9" />
-        ))}
-        <path d={presentPath} fill="none" stroke="#16a34a" strokeWidth={2} />
-        <path d={absentPath} fill="none" stroke="#ef4444" strokeWidth={2} />
-        {data.map((d, i) => (
-          <circle key={`p-${i}`} cx={x(i)} cy={y(d.present)} r={2} fill="#16a34a" />
-        ))}
-        {data.map((d, i) => (
-          <circle key={`a-${i}`} cx={x(i)} cy={y(d.absent)} r={2} fill="#ef4444" />
-        ))}
-        <text x={padding - 8} y={padding + 4} textAnchor="end" fontSize={10} fill="#64748b">{maxY}</text>
-        <g transform={`translate(${padding}, ${padding - 12})`}>
-          <circle cx={0} cy={0} r={4} fill="#16a34a" />
-          <text x={8} y={3} fontSize={12} fill="#475569">Present</text>
-          <circle cx={80} cy={0} r={4} fill="#ef4444" />
-          <text x={88} y={3} fontSize={12} fill="#475569">Absent</text>
-        </g>
-      </svg>
-      {!data.length && (
-        <p className="text-sm text-muted-foreground mt-2">No trends data to display.</p>
-      )}
+    <div style={{ width: '100%', height: 320 }}>
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+          <Tooltip />
+          <Legend />
+          <Line type="monotone" dataKey="present" stroke="#16a34a" strokeWidth={2} dot={false} name="Present" />
+          <Line type="monotone" dataKey="absent" stroke="#ef4444" strokeWidth={2} dot={false} name="Absent" />
+          <Line type="monotone" dataKey="checked_out" stroke="#3b82f6" strokeWidth={2} dot={false} name="Checked-out" />
+          <Line type="monotone" dataKey="still_in" stroke="#a855f7" strokeWidth={2} dot={false} name="Still in" />
+        </LineChart>
+      </ResponsiveContainer>
+      {data.length === 0 && <p className="text-sm text-muted-foreground mt-2">No trends data to display.</p>}
     </div>
   );
 }
@@ -74,6 +54,7 @@ export default function ReportsPage() {
   const [loadingTrends, setLoadingTrends] = useState(false);
   const [trendsView, setTrendsView] = useState<"table" | "chart">("chart");
   const [useRangeForTrends, setUseRangeForTrends] = useState<boolean>(false);
+  const [summaryView, setSummaryView] = useState<"table" | "chart">("table");
 
   const handleGenerate = async () => {
     try {
@@ -263,15 +244,10 @@ function TrendsChart({ trends }: { trends: AttendanceTrends | null }) {
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <span>View:</span>
-                  <Select value={trendsView} onValueChange={(v) => setTrendsView(v as any)}>
-                    <SelectTrigger className="w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="chart">Chart</SelectItem>
-                      <SelectItem value="table">Table</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-1 bg-muted rounded p-1">
+                    <Button size="sm" variant={trendsView === 'chart' ? 'default' : 'ghost'} onClick={() => setTrendsView('chart')}>Chart</Button>
+                    <Button size="sm" variant={trendsView === 'table' ? 'default' : 'ghost'} onClick={() => setTrendsView('table')}>Table</Button>
+                  </div>
                 </div>
                 <div className="hidden md:block w-px h-6 bg-border" />
                 <div className="flex items-center gap-2 text-sm">
@@ -424,45 +400,58 @@ function TrendsChart({ trends }: { trends: AttendanceTrends | null }) {
           </Card>
         </div>
 
-        {/* Table */}
+        {/* Attendance Summary (Table/Chart toggle) */}
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Attendance Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-muted-foreground">
-                  <tr>
-                    <th className="text-left p-4 font-medium">Employee</th>
-                    <th className="text-left p-4 font-medium">Department</th>
-                    <th className="text-left p-4 font-medium">Days Present</th>
-                    <th className="text-left p-4 font-medium">Days Late</th>
-                    <th className="text-left p-4 font-medium">Days Absent</th>
-                    <th className="text-left p-4 font-medium">Total Hours</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((row) => (
-                    <tr key={row.employee_id} className="border-b last:border-b-0">
-                      <td className="p-4 font-medium">{row.employee_name} ({row.employee_code})</td>
-                      <td className="p-4">{row.department}</td>
-                      <td className="p-4">{row.total_days_present}</td>
-                      <td className="p-4">{row.total_days_late}</td>
-                      <td className="p-4">{row.total_days_absent}</td>
-                      <td className="p-4">{row.total_hours_worked}</td>
-                    </tr>
-                  ))}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td className="p-6 text-muted-foreground" colSpan={6}>
-                        No report data for the selected filters.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="flex items-center justify-between">
+              <CardTitle>Attendance Summary</CardTitle>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>View:</span>
+                <div className="flex items-center gap-1 bg-muted rounded p-1">
+                  <Button size="sm" variant={summaryView === 'table' ? 'default' : 'ghost'} onClick={() => setSummaryView('table')}>Table</Button>
+                  <Button size="sm" variant={summaryView === 'chart' ? 'default' : 'ghost'} onClick={() => { setSummaryView('chart'); if (!trends) handleLoadTrends(); }}>Chart</Button>
+                </div>
+              </div>
             </div>
+          </CardHeader>
+          <CardContent className={summaryView === 'table' ? 'p-0' : ''}>
+            {summaryView === 'chart' ? (
+              <TrendsChart trends={trends} />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="text-left p-4 font-medium">Employee</th>
+                      <th className="text-left p-4 font-medium">Department</th>
+                      <th className="text-left p-4 font-medium">Days Present</th>
+                      <th className="text-left p-4 font-medium">Days Late</th>
+                      <th className="text-left p-4 font-medium">Days Absent</th>
+                      <th className="text-left p-4 font-medium">Total Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((row) => (
+                      <tr key={row.employee_id} className="border-b last:border-b-0">
+                        <td className="p-4 font-medium">{row.employee_name} ({row.employee_code})</td>
+                        <td className="p-4">{row.department}</td>
+                        <td className="p-4">{row.total_days_present}</td>
+                        <td className="p-4">{row.total_days_late}</td>
+                        <td className="p-4">{row.total_days_absent}</td>
+                        <td className="p-4">{row.total_hours_worked}</td>
+                      </tr>
+                    ))}
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td className="p-6 text-muted-foreground" colSpan={6}>
+                          No report data for the selected filters.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
