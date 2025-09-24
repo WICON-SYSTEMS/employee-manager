@@ -254,7 +254,20 @@ export default function AttendancePage() {
 
         {/* Summary cards */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Summary</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold">Summary</h2>
+            {selectedEmployee && (
+              <div className="flex items-center gap-2">
+                <Avatar className="w-7 h-7" title={`${selectedEmployee.first_name} ${selectedEmployee.last_name} (${selectedEmployee.employee_code})`}>
+                  <AvatarImage src={(selectedEmployee as any).image_url || ""} alt={`${selectedEmployee.first_name} ${selectedEmployee.last_name}`} />
+                  <AvatarFallback className="bg-muted text-[10px]">
+                    {`${selectedEmployee.first_name[0]}${selectedEmployee.last_name[0]}`.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="text-sm text-muted-foreground">{selectedEmployee.first_name} {selectedEmployee.last_name}</span>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span>Mode:</span>
             <Select value={summaryMode} onValueChange={(v) => setSummaryMode(v as any)}>
@@ -346,7 +359,7 @@ export default function AttendancePage() {
                       <tr key={r.attendance_id} className="border-b last:border-b-0">
                         <td className="p-4 font-medium">
                           <div className="flex items-center gap-2">
-                            <Avatar className="w-8 h-8">
+                            <Avatar className="w-8 h-8" title={`${name}${emp?.employee_code ? ` (${emp.employee_code})` : ''}`}>
                               <AvatarImage src={imageUrl} alt={name} />
                               <AvatarFallback className="bg-muted text-xs">{initials}</AvatarFallback>
                             </Avatar>
