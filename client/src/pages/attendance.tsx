@@ -1,37 +1,81 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar as CalendarIcon, RefreshCcw, Download } from "lucide-react";
+import { useEmployees } from "@/hooks/use-employees";
+import { useToast } from "@/hooks/use-toast";
+import { getEmployeeAttendance, type AttendanceRecord } from "@/lib/attendance";
 
-// Temporary mock data until attendance API endpoints are available
-const mockAttendance = [
-  { id: "1", employee: "Alex Smith", status: "Present", checkIn: "09:05", checkOut: "17:35", hours: 8.5, date: "2025-09-22", department: "Engineering" },
-  { id: "2", employee: "Jane Doe", status: "Late", checkIn: "09:35", checkOut: "17:45", hours: 8.0, date: "2025-09-22", department: "HR" },
-  { id: "3", employee: "Michael Chen", status: "Absent", checkIn: "-", checkOut: "-", hours: 0, date: "2025-09-22", department: "Engineering" },
-  { id: "4", employee: "Sarah Johnson", status: "Present", checkIn: "08:55", checkOut: "17:10", hours: 8.25, date: "2025-09-22", department: "Finance" },
-];
+// Helpers
+const formatTime = (iso?: string | null) => (iso ? new Date(iso).toLocaleTimeString() : "-");
+const formatDate = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString() : "-");
 
 export default function AttendancePage() {
-  const [query, setQuery] = useState("");
-  const [department, setDepartment] = useState<string>("all");
-  const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [status, setStatus] = useState<string>("all");
+  const { employees, isLoading: isLoadingEmployees } = useEmployees();
+  const { toast } = useToast();
 
-  const filtered = mockAttendance.filter((row) => {
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<string>("all");
+  const [rows, setRows] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const employeeMap = useMemo(() => new Map(employees.map(e => [e.employee_id, e])), [employees]);
+  const selectedEmployee = selectedEmployeeId ? employeeMap.get(selectedEmployeeId) : undefined;
+
+  const handleRefresh = async () => {
+    if (!selectedEmployeeId) {
+      toast({ title: "Select employee", description: "Choose an employee to load attendance.", variant: "destructive" });
+      return;
+    }
+    try {
+      setLoading(true);
+      const data = await getEmployeeAttendance(selectedEmployeeId, startDate || undefined, endDate || undefined);
+      setRows(data.attendance_records);
+      toast({ title: "Attendance loaded", description: `${data.total_records} records retrieved.` });
+    } catch (e: any) {
+      toast({ title: "Failed to load", description: e?.message || "Could not fetch attendance", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (!rows.length) {
+      toast({ title: "No data", description: "Load attendance first.", variant: "destructive" });
+      return;
+    }
+    const headers = ["attendance_id","employee_id","date","check_in_time","check_out_time","hours_worked","status","qr_code_scanned","created_at","updated_at"];
+    const toCsvValue = (v: unknown) => `"${(v ?? "").toString().replace(/"/g,'""')}"`;
+    const csv = [headers, ...rows.map(r => [r.attendance_id, r.employee_id, r.date, r.check_in_time, r.check_out_time, r.hours_worked ?? "", r.status, r.qr_code_scanned ?? "", r.created_at, r.updated_at ?? ""])].map(r => r.map(toCsvValue).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attendance_${selectedEmployeeId || "all"}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const filtered = rows.filter((r) => {
     const q = query.toLowerCase();
-    const matchesQuery = !q || row.employee.toLowerCase().includes(q);
-    const matchesDept = department === "all" || row.department === department;
-    const matchesDate = !date || row.date === date;
-    const matchesStatus = status === "all" || row.status.toLowerCase() === status;
-    return matchesQuery && matchesDept && matchesDate && matchesStatus;
+    const emp = employeeMap.get(r.employee_id);
+    const empName = emp ? `${emp.first_name} ${emp.last_name}`.toLowerCase() : r.employee_id.toLowerCase();
+    const matchesQuery = !q || empName.includes(q);
+    const matchesStatus = status === "all" || r.status.toLowerCase() === status;
+    return matchesQuery && matchesStatus;
   });
 
-  const presentCount = filtered.filter((r) => r.status === "Present").length;
-  const lateCount = filtered.filter((r) => r.status === "Late").length;
-  const absentCount = filtered.filter((r) => r.status === "Absent").length;
+  const presentCount = filtered.length; // records returned are present/check-in based
+  const lateCount = 0; // backend may add lateness later
+  const absentCount = 0;
 
   return (
     <DashboardLayout>
@@ -43,10 +87,10 @@ export default function AttendancePage() {
             <p className="text-muted-foreground mt-2">Track employee daily attendance and punctuality.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2">
-              <RefreshCcw className="w-4 h-4" /> Refresh
+            <Button variant="outline" className="gap-2" onClick={handleRefresh} disabled={loading || isLoadingEmployees}>
+              <RefreshCcw className={"w-4 h-4" + (loading ? " animate-spin" : "")} /> {loading ? "Loading..." : "Refresh"}
             </Button>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={handleExport} disabled={!filtered.length}>
               <Download className="w-4 h-4" /> Export CSV
             </Button>
           </div>
@@ -61,16 +105,17 @@ export default function AttendancePage() {
                 <Input placeholder="Search employee..." value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Department</label>
-                <Select value={department} onValueChange={setDepartment}>
+                <label className="text-sm text-muted-foreground">Employee</label>
+                <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Department" />
+                    <SelectValue placeholder={isLoadingEmployees ? "Loading employees..." : "Select employee"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="Engineering">Engineering</SelectItem>
-                    <SelectItem value="HR">HR</SelectItem>
-                    <SelectItem value="Finance">Finance</SelectItem>
+                    {employees.map(e => (
+                      <SelectItem key={e.employee_id} value={e.employee_id}>
+                        {e.first_name} {e.last_name} ({e.employee_code})
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -82,19 +127,16 @@ export default function AttendancePage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="present">Present</SelectItem>
-                    <SelectItem value="late">Late</SelectItem>
-                    <SelectItem value="absent">Absent</SelectItem>
+                    <SelectItem value="checked_in">Checked In</SelectItem>
+                    <SelectItem value="checked_out">Checked Out</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <label className="text-sm text-muted-foreground">Date</label>
-                <div className="flex items-center gap-2">
-                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-                  <Button variant="outline" size="icon">
-                    <CalendarIcon className="w-4 h-4" />
-                  </Button>
+                <label className="text-sm text-muted-foreground">Date Range</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="Start date" />
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="End date" />
                 </div>
               </div>
             </div>
@@ -135,7 +177,7 @@ export default function AttendancePage() {
         {/* Table */}
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Daily Attendance</CardTitle>
+            <CardTitle>Employee Attendance{selectedEmployee ? ` – ${selectedEmployee.first_name} ${selectedEmployee.last_name}` : ""}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -152,29 +194,27 @@ export default function AttendancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((row) => (
-                    <tr key={row.id} className="border-b last:border-b-0">
-                      <td className="p-4 font-medium">{row.employee}</td>
-                      <td className="p-4">{row.department}</td>
-                      <td className="p-4">
-                        <span
-                          className={
-                            row.status === "Present"
-                              ? "px-2 py-1 rounded-full text-xs bg-green-100 text-green-700"
-                              : row.status === "Late"
-                              ? "px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-700"
-                              : "px-2 py-1 rounded-full text-xs bg-red-100 text-red-700"
-                          }
-                        >
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="p-4">{row.checkIn}</td>
-                      <td className="p-4">{row.checkOut}</td>
-                      <td className="p-4">{row.hours}</td>
-                      <td className="p-4">{row.date}</td>
-                    </tr>
-                  ))}
+                  {filtered.map((r) => {
+                    const emp = employeeMap.get(r.employee_id);
+                    const name = emp ? `${emp.first_name} ${emp.last_name}` : r.employee_id;
+                    const dept = emp?.department || "-";
+                    const badgeClass = r.status === 'checked_out'
+                      ? 'px-2 py-1 rounded-full text-xs bg-green-100 text-green-700'
+                      : 'px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700';
+                    return (
+                      <tr key={r.attendance_id} className="border-b last:border-b-0">
+                        <td className="p-4 font-medium">{name}</td>
+                        <td className="p-4">{dept}</td>
+                        <td className="p-4">
+                          <span className={badgeClass}>{r.status}</span>
+                        </td>
+                        <td className="p-4">{formatTime(r.check_in_time)}</td>
+                        <td className="p-4">{formatTime(r.check_out_time)}</td>
+                        <td className="p-4">{r.hours_worked ?? '-'}</td>
+                        <td className="p-4">{formatDate(r.date)}</td>
+                      </tr>
+                    );
+                  })}
                   {filtered.length === 0 && (
                     <tr>
                       <td className="p-6 text-muted-foreground" colSpan={7}>
