@@ -42,6 +42,16 @@ export default function AttendancePage() {
   const employeeMap = useMemo(() => new Map(employees.map(e => [e.employee_id, e])), [employees]);
   const selectedEmployee = selectedEmployeeId ? employeeMap.get(selectedEmployeeId) : undefined;
 
+  const handleEmployeeChange = (v: string) => {
+    const id = v === ALL_EMP_VALUE ? "" : v;
+    setSelectedEmployeeId(id);
+    // Auto-refresh when changing employee selection
+    // slight delay to ensure state is applied
+    setTimeout(() => {
+      handleRefresh();
+    }, 0);
+  };
+
   const handleRefresh = async () => {
     try {
       setLoading(true);
@@ -139,7 +149,7 @@ export default function AttendancePage() {
               </div>
               <div>
                 <label className="text-sm text-muted-foreground">Employee (optional)</label>
-                <Select value={selectedEmployeeId || ALL_EMP_VALUE} onValueChange={(v) => setSelectedEmployeeId(v === ALL_EMP_VALUE ? "" : v)}>
+                <Select value={selectedEmployeeId || ALL_EMP_VALUE} onValueChange={handleEmployeeChange}>
                   <SelectTrigger>
                     <SelectValue placeholder={isLoadingEmployees ? "Loading employees..." : "All employees"} />
                   </SelectTrigger>
@@ -147,7 +157,7 @@ export default function AttendancePage() {
                     <SelectItem value={ALL_EMP_VALUE}>All employees</SelectItem>
                     {employees.map(e => (
                       <SelectItem key={e.employee_id} value={e.employee_id}>
-                        {e.first_name} {e.last_name} ({e.employee_code})
+                        {e.first_name} {e.last_name} ({e.employee_code}) • {e.department}
                       </SelectItem>
                     ))}
                   </SelectContent>
