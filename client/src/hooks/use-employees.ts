@@ -5,9 +5,11 @@ import type { Employee, InsertEmployee, UpdateEmployee } from "@shared/schema";
 export function useEmployees() {
   const queryClient = useQueryClient();
 
-  const { data: employees, isLoading, error } = useQuery({
+  const { data: employees, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["/v1/admin/employees"],
     queryFn: () => getEmployees(1, 50),
+    refetchOnMount: "always",
+    staleTime: 0,
   });
 
   const createEmployeeMutation = useMutation({
@@ -49,7 +51,9 @@ export function useEmployees() {
   return {
     employees: employees || [],
     isLoading,
+    isFetching,
     error,
+    refetch,
     createEmployee: createEmployeeMutation.mutate,
     updateEmployee: updateEmployeeMutation.mutate,
     deleteEmployee: deleteEmployeeMutation.mutate,

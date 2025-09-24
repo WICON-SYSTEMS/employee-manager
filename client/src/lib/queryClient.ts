@@ -4,10 +4,28 @@ import type { ApiResponse } from "@shared/schema";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://biometric-attendance-system-backend.onrender.com";
 
 // Token management
+const TOKEN_STORAGE_KEY = "auth_token";
 let authToken: string | null = null;
+
+// Initialize token from storage on module load
+try {
+  const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (stored) authToken = stored;
+} catch {
+  // ignore storage errors (e.g., SSR or privacy mode)
+}
 
 export function setAuthToken(token: string | null) {
   authToken = token;
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage errors
+  }
 }
 
 export function getAuthToken(): string | null {
@@ -16,6 +34,11 @@ export function getAuthToken(): string | null {
 
 export function clearAuthToken() {
   authToken = null;
+  try {
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export async function apiRequest(
