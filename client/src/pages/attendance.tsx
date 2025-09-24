@@ -26,6 +26,7 @@ export default function AttendancePage() {
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [analytics, setAnalytics] = useState<ComprehensiveAnalytics | null>(null);
+  const [summaryMode, setSummaryMode] = useState<"daily" | "period">("daily");
   const [dailyBreakdown, setDailyBreakdown] = useState<Array<{
     date: string;
     total_employees: number;
@@ -93,12 +94,21 @@ export default function AttendancePage() {
     return matchesQuery && matchesStatus;
   });
 
-  // Compute cards from daily_breakdown for selected day (endDate or today)
+  // Compute cards based on summaryMode
   const targetDay = (endDate || new Date().toISOString().slice(0,10));
   const dayRow = dailyBreakdown.find(d => d.date === targetDay);
-  const presentCount = dayRow?.present ?? filtered.length;
-  const lateCount = dayRow?.late ?? 0;
-  const absentCount = dayRow?.absent ?? 0;
+  const presentCount = summaryMode === 'daily'
+    ? (dayRow?.present ?? filtered.length)
+    : (analytics?.overall_summary?.total_present_days ?? filtered.length);
+  const lateCount = summaryMode === 'daily'
+    ? (dayRow?.late ?? 0)
+    : (analytics?.overall_summary?.total_late_days ?? 0);
+  const absentCount = summaryMode === 'daily'
+    ? (dayRow?.absent ?? 0)
+    : (analytics?.overall_summary?.total_absent_days ?? 0);
+  const stillCheckedIn = dayRow?.still_checked_in ?? 0;
+  const checkedOut = dayRow?.checked_out ?? 0;
+  const totalEmployeesToday = dayRow?.total_employees ?? employees.length;
 
   return (
     <DashboardLayout>
@@ -168,14 +178,30 @@ export default function AttendancePage() {
         </Card>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Summary</h2>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Mode:</span>
+            <Select value={summaryMode} onValueChange={(v) => setSummaryMode(v as any)}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="period">Period</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="shadow-sm">
             <CardHeader>
               <CardTitle>Present</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-600">{presentCount}</div>
-              <p className="text-sm text-muted-foreground mt-2">Employees present today</p>
+              <p className="text-sm text-muted-foreground mt-2">{summaryMode === 'daily' ? 'Employees present (day)' : 'Present days (period)'}
+              </p>
             </CardContent>
           </Card>
           <Card className="shadow-sm">
@@ -184,7 +210,8 @@ export default function AttendancePage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-yellow-600">{lateCount}</div>
-              <p className="text-sm text-muted-foreground mt-2">Arrived after start time</p>
+              <p className="text-sm text-muted-foreground mt-2">{summaryMode === 'daily' ? 'Late arrivals (day)' : 'Late days (period)'}
+              </p>
             </CardContent>
           </Card>
           <Card className="shadow-sm">
@@ -193,10 +220,21 @@ export default function AttendancePage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-red-600">{absentCount}</div>
-              <p className="text-sm text-muted-foreground mt-2">Not checked in today</p>
+              <p className="text-sm text-muted-foreground mt-2">{summaryMode === 'daily' ? 'Not checked in (day)' : 'Absent days (period)'}
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle>Checked-out</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">{checkedOut}</div>
+              <p className="text-sm text-muted-foreground mt-2">Completed work (day)</p>
             </CardContent>
           </Card>
         </div>
+        <p className="text-xs text-muted-foreground">Date: {targetDay} • Employees: {totalEmployeesToday} • Still checked-in: {stillCheckedIn}</p>
 
         {/* Table */}
         <Card className="shadow-sm">
