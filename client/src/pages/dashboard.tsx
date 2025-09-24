@@ -234,7 +234,7 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
-              <div className="h-64">
+              <div className="h-80 md:h-96">
                 {weeklyAttendance.length > 0 && weeklyHasData ? (
                   <ResponsiveContainer>
                     <BarChart data={weeklyAttendance} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
