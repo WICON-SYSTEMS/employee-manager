@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useEmployees } from "@/hooks/use-employees";
 import { Users, UserCheck, Clock, Calendar, RefreshCcw } from "lucide-react";
 import { getAttendanceTrends, getAllAttendance, type AttendanceRecord } from "@/lib/attendance";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ResponsiveContainer, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from "recharts";
 
 export default function Dashboard() {
@@ -13,7 +14,7 @@ export default function Dashboard() {
 
   // Real data state
   const [weeklyAttendance, setWeeklyAttendance] = useState<Array<{ day: string; percentage: number; title: string }>>([]);
-  const [recentActivities, setRecentActivities] = useState<Array<{ message: string; detail: string; time: string; color: string }>>([]);
+  const [recentActivities, setRecentActivities] = useState<Array<{ employeeId: string; name: string; imageUrl?: string; message: string; detail: string; time: string; color: string }>>([]);
   const [loadingTrends, setLoadingTrends] = useState(false);
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string>("");
@@ -111,25 +112,25 @@ export default function Dashboard() {
       try {
         setLoadingRecent(true);
         const resp = await getAllAttendance({ page: 1, limit: 8 });
+        const empMap = new Map((employees || []).map(e => [e.employee_id, e]));
         const items = (resp.attendance_records || []).map((r: AttendanceRecord) => {
-          const name = (r as any).employee_name || r.employee_id;
+          const emp = empMap.get(r.employee_id);
+          const name = (r as any).employee_name || (emp ? `${emp.first_name} ${emp.last_name}` : r.employee_id);
+          const imageUrl = (emp as any)?.image_url || undefined;
           const time = r.check_in_time || r.created_at;
           const timeText = new Date(time).toLocaleTimeString();
           const message = r.status === 'checked_out' ? 'Checked out' : 'Checked in';
           const color = r.status === 'checked_out' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600';
-          const detail = `${name} on ${new Date(r.date).toLocaleDateString()}`;
-          return { message, detail, time: timeText, color };
+          const detail = `${new Date(r.date).toLocaleDateString()}`;
+          return { employeeId: r.employee_id, name, imageUrl, message, detail, time: timeText, color };
         });
         setRecentActivities(items);
-        setLastUpdated(new Date().toLocaleString());
-      } catch (e) {
-        // swallow errors on dashboard load
       } finally {
         setLoadingRecent(false);
       }
     };
     loadRecent();
-  }, []);
+  }, [employees]);
 
   const handleRefresh = async () => {
     setLoadingTrends(true);
@@ -152,14 +153,17 @@ export default function Dashboard() {
       })(),
       (async () => {
         const resp = await getAllAttendance({ page: 1, limit: 8 });
+        const empMap = new Map((employees || []).map(e => [e.employee_id, e]));
         const items = (resp.attendance_records || []).map((r: AttendanceRecord) => {
-          const name = (r as any).employee_name || r.employee_id;
+          const emp = empMap.get(r.employee_id);
+          const name = (r as any).employee_name || (emp ? `${emp.first_name} ${emp.last_name}` : r.employee_id);
+          const imageUrl = (emp as any)?.image_url || undefined;
           const time = r.check_in_time || r.created_at;
           const timeText = new Date(time).toLocaleTimeString();
           const message = r.status === 'checked_out' ? 'Checked out' : 'Checked in';
           const color = r.status === 'checked_out' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600';
-          const detail = `${name} on ${new Date(r.date).toLocaleDateString()}`;
-          return { message, detail, time: timeText, color };
+          const detail = `${new Date(r.date).toLocaleDateString()}`;
+          return { employeeId: r.employee_id, name, imageUrl, message, detail, time: timeText, color };
         });
         setRecentActivities(items);
       })()
@@ -260,24 +264,30 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <h3 className="text-lg font-semibold text-foreground mb-4">Recent Activities</h3>
               <div className="space-y-4">
-                {(recentActivities.length ? recentActivities : []).map((activity, index) => (
-                  <div key={index} className="flex items-center gap-3" data-testid={`activity-${index}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${activity.color}`}>
-                      <div className="w-3 h-3 rounded-full bg-current" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">
-                        {activity.message}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {activity.detail}
-                      </p>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {activity.time}
-                    </span>
-                  </div>
-                ))}
+                {(recentActivities.length ? recentActivities : []).map((activity, index) => {
+                  const initials = activity.name
+                    ? activity.name.split(' ').map(s => s[0]).join('').slice(0,2).toUpperCase()
+                    : '?';
+                  return (
+                    <a key={index} href={`/attendance?employee_id=${encodeURIComponent(activity.employeeId)}`} className="flex items-center gap-3 hover:bg-accent rounded-md px-2 py-1 transition-colors" data-testid={`activity-${index}`}>
+                      <Avatar className="w-8 h-8">
+                        <AvatarImage src={activity.imageUrl || ""} alt={activity.name} />
+                        <AvatarFallback className="bg-muted text-xs">{initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {activity.message} • {activity.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {activity.detail}
+                        </p>
+                      </div>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {activity.time}
+                      </span>
+                    </a>
+                  );
+                })}
                 {recentActivities.length === 0 && (
                   <p className="text-sm text-muted-foreground">No recent activities.</p>
                 )}

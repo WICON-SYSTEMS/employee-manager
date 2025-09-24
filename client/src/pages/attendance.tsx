@@ -103,6 +103,16 @@ export default function AttendancePage() {
 
   // Auto-fetch on initial mount
   useEffect(() => {
+    // Preselect employee from URL if provided
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const eid = params.get("employee_id");
+      if (eid) {
+        setSelectedEmployeeId(eid);
+        setTimeout(() => handleRefresh(), 0);
+        return;
+      }
+    } catch {}
     handleRefresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -373,7 +383,20 @@ export default function AttendancePage() {
         <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
           <DialogContent className="max-w-4xl">
             <DialogHeader>
-              <DialogTitle>Attendance History</DialogTitle>
+              <div className="flex items-center gap-3">
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={(employeeMap.get(historyEmployeeId) as any)?.image_url || ""} alt={employeeMap.get(historyEmployeeId) ? `${employeeMap.get(historyEmployeeId)!.first_name} ${employeeMap.get(historyEmployeeId)!.last_name}` : "Employee"} />
+                  <AvatarFallback className="bg-muted">
+                    {employeeMap.get(historyEmployeeId) ? `${employeeMap.get(historyEmployeeId)!.first_name[0]}${employeeMap.get(historyEmployeeId)!.last_name[0]}`.toUpperCase() : '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <DialogTitle>Attendance History</DialogTitle>
+                  <p className="text-xs text-muted-foreground">
+                    {employeeMap.get(historyEmployeeId) ? `${employeeMap.get(historyEmployeeId)!.first_name} ${employeeMap.get(historyEmployeeId)!.last_name}` : historyEmployeeId}
+                  </p>
+                </div>
+              </div>
             </DialogHeader>
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
@@ -398,6 +421,7 @@ export default function AttendancePage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-muted-foreground">
                     <tr>
+                      <th className="text-left p-3 font-medium">Employee</th>
                       <th className="text-left p-3 font-medium">Date</th>
                       <th className="text-left p-3 font-medium">Check-in</th>
                       <th className="text-left p-3 font-medium">Check-out</th>
@@ -408,12 +432,25 @@ export default function AttendancePage() {
                   </thead>
                   <tbody>
                     {historyLoading ? (
-                      <tr><td className="p-4" colSpan={6}>Loading...</td></tr>
+                      <tr><td className="p-4" colSpan={7}>Loading...</td></tr>
                     ) : historyRows.length === 0 ? (
-                      <tr><td className="p-4 text-muted-foreground" colSpan={6}>No records.</td></tr>
+                      <tr><td className="p-4 text-muted-foreground" colSpan={7}>No records.</td></tr>
                     ) : (
                       historyRows.map((h) => (
                         <tr key={h.attendance_id} className="border-b last:border-b-0">
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="w-8 h-8">
+                                <AvatarImage src={(employeeMap.get(historyEmployeeId) as any)?.image_url || ""} alt="Employee" />
+                                <AvatarFallback className="bg-muted text-xs">
+                                  {employeeMap.get(historyEmployeeId) ? `${employeeMap.get(historyEmployeeId)!.first_name[0]}${employeeMap.get(historyEmployeeId)!.last_name[0]}`.toUpperCase() : '?'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm">
+                                {employeeMap.get(historyEmployeeId) ? `${employeeMap.get(historyEmployeeId)!.first_name} ${employeeMap.get(historyEmployeeId)!.last_name}` : historyEmployeeId}
+                              </span>
+                            </div>
+                          </td>
                           <td className="p-3">{formatDate(h.date)}</td>
                           <td className="p-3">{formatTime(h.check_in_time)}</td>
                           <td className="p-3">{formatTime(h.check_out_time)}</td>
