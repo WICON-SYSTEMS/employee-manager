@@ -64,10 +64,21 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
     details?.biometric_status?.qr_code_generated ??
     (employee.registration_status === 'fully_registered' ? true : undefined);
 
-  // Normalize QR image from details (GET by ID) if present
+  // Normalize QR image from details (GET by ID) or fallback to list item if present
   const qrFromDetails = normalizeQrImage(
-    (details?.qr_code_info?.qr_code_image as string | undefined) ||
-    (details?.qr_code_image as string | undefined) ||
+    // Preferred: nested info object
+    (details as any)?.qr_code_info?.qr_code_image ||
+    (details as any)?.qr_code_info?.image ||
+    (details as any)?.qr_code_info?.qr ||
+    // Flat fields on details
+    (details as any)?.qr_code_image ||
+    (details as any)?.qr_code ||
+    (details as any)?.qr_code_image_url ||
+    // Fallback to the employee object passed from the table/list
+    (employee as any)?.qr_code_info?.qr_code_image ||
+    (employee as any)?.qr_code_image ||
+    (employee as any)?.qr_code ||
+    (employee as any)?.qr_code_image_url ||
     null
   );
 
@@ -234,7 +245,7 @@ export function EmployeeDetailModal({ open, onClose, onEdit, employee }: Employe
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <div className="bg-white p-4 rounded-lg" data-testid="qr-code-container">
                 {qrImage || qrFromDetails ? (
-                  <img src={(qrImage || qrFromDetails) as string} alt="QR Code" className="w-32 h-32" />
+                  <img src={(qrImage || qrFromDetails) as string} alt="QR Code" className="w-32 h-32 object-contain" />
                 ) : (
                   <div className="w-32 h-32 bg-gray-200 rounded flex items-center justify-center">
                     <div className="text-center">

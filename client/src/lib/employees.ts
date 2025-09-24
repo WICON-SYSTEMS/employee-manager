@@ -74,7 +74,10 @@ export async function uploadEmployeeBiometrics(
 // Helper to normalize QR image to a data URL if backend returns raw base64
 export function normalizeQrImage(src: string | undefined | null): string | null {
   if (!src) return null;
+  // Already a data URL
   if (src.startsWith('data:')) return src;
-  // assume PNG base64
+  // If it's an absolute URL, return as-is
+  if (src.startsWith('http://') || src.startsWith('https://')) return src;
+  // Heuristic: likely raw base64 without header; prefix PNG data header
   return `data:image/png;base64,${src}`;
 }
