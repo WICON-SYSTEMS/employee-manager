@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,8 @@ import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tool
 import { useToast } from "@/hooks/use-toast";
 import { getComprehensiveAnalytics, getAttendanceTrends, getEmployeeAnalytics, type ComprehensiveAnalytics, type AttendanceTrends, type EmployeeAnalyticsResponse } from "@/lib/attendance";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useEmployees } from "@/hooks/use-employees";
 
 type SimpleDateRange = { from?: string; to?: string };
 
@@ -43,6 +45,8 @@ function TrendsChart({ trends }: { trends: AttendanceTrends | null }) {
 
 export default function ReportsPage() {
   const { toast } = useToast();
+  const { employees } = useEmployees();
+  const employeeMap = useMemo(() => new Map((employees || []).map(e => [e.employee_id, e])), [employees]);
   const [query, setQuery] = useState("");
   const [range, setRange] = useState<SimpleDateRange | undefined>({
     from: new Date().toISOString().slice(0,10).replace(/-\d{2}$/, "-01"),
@@ -497,20 +501,40 @@ export default function ReportsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((row) => (
-                    <tr key={row.employee_id} className="border-b last:border-b-0">
-                      <td className="p-4 font-medium">
-                        <button className="text-primary hover:underline" onClick={() => openEmployeeAnalytics(row)}>
-                          {row.employee_name} ({row.employee_code})
-                        </button>
-                      </td>
-                      <td className="p-4">{row.department}</td>
-                      <td className="p-4">{row.total_days_present}</td>
-                      <td className="p-4">{row.total_days_late}</td>
-                      <td className="p-4">{row.total_days_absent}</td>
-                      <td className="p-4">{row.total_hours_worked}</td>
-                    </tr>
-                  ))}
+                    {filtered.map((row) => {
+                      const emp = employeeMap.get(row.employee_id);
+                      const imageUrl = (emp as any)?.image_url || "";
+                      const initials = row.employee_name.split(' ').map(s=>s[0]).join('').slice(0,2).toUpperCase();
+                      const title = `${row.employee_name} (${row.employee_code})`;
+                      const attendanceHref = `/attendance?employee_id=${encodeURIComponent(row.employee_id)}`;
+                      const viewHref = `/employees?q=${encodeURIComponent(row.employee_code)}`;
+                      return (
+                        <tr key={row.employee_id} className="border-b last:border-b-0 hover:bg-accent/40">
+                          <td className="p-4 font-medium">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="w-8 h-8" title={title}>
+                                <AvatarImage src={imageUrl} alt={row.employee_name} />
+                                <AvatarFallback className="bg-muted text-xs">{initials}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex items-center gap-2">
+                                <a href={attendanceHref} className="text-primary hover:underline" title="Open in Attendance">
+                                  {row.employee_name} ({row.employee_code})
+                                </a>
+                                <span className="text-muted-foreground">•</span>
+                                <button className="text-primary/80 hover:underline" onClick={() => openEmployeeAnalytics(row)} title="Open analytics modal">Analytics</button>
+                                <span className="text-muted-foreground">•</span>
+                                <a href={viewHref} className="text-primary/80 hover:underline" title="View employee">View</a>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4">{row.department}</td>
+                          <td className="p-4">{row.total_days_present}</td>
+                          <td className="p-4">{row.total_days_late}</td>
+                          <td className="p-4">{row.total_days_absent}</td>
+                          <td className="p-4">{row.total_hours_worked}</td>
+                        </tr>
+                      );
+                    })}
                     {filtered.length === 0 && (
                       <tr>
                         <td className="p-6 text-muted-foreground" colSpan={6}>

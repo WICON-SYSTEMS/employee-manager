@@ -405,9 +405,20 @@ export default function AttendancePage() {
                 </Avatar>
                 <div>
                   <DialogTitle>Attendance History</DialogTitle>
-                  <p className="text-xs text-muted-foreground">
-                    {employeeMap.get(historyEmployeeId) ? `${employeeMap.get(historyEmployeeId)!.first_name} ${employeeMap.get(historyEmployeeId)!.last_name}` : historyEmployeeId}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {employeeMap.get(historyEmployeeId) ? `${employeeMap.get(historyEmployeeId)!.first_name} ${employeeMap.get(historyEmployeeId)!.last_name}` : historyEmployeeId}
+                    </p>
+                    {employeeMap.get(historyEmployeeId) && (
+                      <a
+                        href={`/employees?q=${encodeURIComponent(employeeMap.get(historyEmployeeId)!.employee_code)}`}
+                        className="text-xs text-primary hover:underline"
+                        title={`View employee ${employeeMap.get(historyEmployeeId)!.first_name} ${employeeMap.get(historyEmployeeId)!.last_name} (${employeeMap.get(historyEmployeeId)!.employee_code})`}
+                      >
+                        View employee
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             </DialogHeader>
