@@ -10,9 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useEmployees } from "@/hooks/use-employees";
 import { sendPayout, getPayoutEnvInfo, type PayoutMedium } from "@/lib/payments";
-import { Download, Upload, Wallet, FileSpreadsheet, Shield, Coins } from "lucide-react";
-import { getAllSalaries, type SalariesListResponse } from "@/lib/salaries";
+import { Download, Upload, Wallet, FileSpreadsheet, Shield, Coins, Eye, FileDown } from "lucide-react";
+import { getAllSalaries, getEmployeeSalary, type SalariesListResponse, type EmployeeSalaryResponse } from "@/lib/salaries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Link } from "wouter";
 
 export default function PaymentsPage() {
   const { toast } = useToast();
@@ -42,6 +44,12 @@ export default function PaymentsPage() {
   const [salariesResp, setSalariesResp] = useState<SalariesListResponse | null>(null);
   const [loadingSalaries, setLoadingSalaries] = useState(false);
 
+  // Breakdown modal state
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [breakdownEmpId, setBreakdownEmpId] = useState<string | null>(null);
+  const [breakdownResp, setBreakdownResp] = useState<EmployeeSalaryResponse | null>(null);
+  const [loadingBreakdown, setLoadingBreakdown] = useState(false);
+
   const loadSalaries = async () => {
     try {
       setLoadingSalaries(true);
@@ -58,6 +66,73 @@ export default function PaymentsPage() {
     loadSalaries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salPage, salLimit, salMonth, salYear, salDept]);
+
+  const openBreakdown = async (employeeId: string) => {
+    setBreakdownEmpId(employeeId);
+    setBreakdownOpen(true);
+    await loadBreakdown(employeeId);
+  };
+
+  const loadBreakdown = async (employeeId?: string) => {
+    const id = employeeId || breakdownEmpId;
+    if (!id) return;
+    try {
+      setLoadingBreakdown(true);
+      const resp = await getEmployeeSalary(id, { month: salMonth, year: salYear });
+      setBreakdownResp(resp);
+    } catch (e: any) {
+      toast({ title: "Failed to load breakdown", description: e?.message || "", variant: "destructive" });
+    } finally {
+      setLoadingBreakdown(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      setLoadingSalaries(true);
+      const allRows: any[] = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const data = await getAllSalaries({ page, limit: salLimit, month: salMonth, year: salYear, department: salDept || undefined });
+        totalPages = data.pagination.total_pages;
+        allRows.push(...data.salaries);
+        page++;
+      } while (page <= totalPages);
+      const header = [
+        "employee_id","employee_name","employee_code","department","position","base_salary","monthly_hours_worked","expected_hours","hourly_rate","calculated_salary","month","year"
+      ];
+      const lines = [header.join(",")].concat(
+        allRows.map(s => [
+          s.employee_id,
+          JSON.stringify(s.employee_name ?? ""),
+          s.employee_code ?? "",
+          JSON.stringify(s.department ?? ""),
+          JSON.stringify(s.position ?? ""),
+          s.base_salary ?? "",
+          s.monthly_hours_worked ?? "",
+          s.expected_hours ?? "",
+          s.hourly_rate ?? "",
+          s.calculated_salary ?? "",
+          s.month ?? "",
+          s.year ?? "",
+        ].join(","))
+      );
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `salaries_${salYear || "yyyy"}_${salMonth || "mm"}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e?.message || "", variant: "destructive" });
+    } finally {
+      setLoadingSalaries(false);
+    }
+  };
 
   const sortedEmployees = useMemo(
     () => [...employees].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)),
@@ -408,8 +483,9 @@ export default function PaymentsPage() {
                     <Label>Department</Label>
                     <Input placeholder="e.g. Engineering" value={salDept} onChange={(e)=> setSalDept(e.target.value)} />
                   </div>
-                  <div className="flex items-end">
+                  <div className="flex items-end gap-2">
                     <Button variant="outline" onClick={() => { setSalPage(1); loadSalaries(); }} disabled={loadingSalaries} className="w-full">{loadingSalaries ? 'Loading…' : 'Refresh'}</Button>
+                    <Button variant="outline" type="button" onClick={handleExportCsv} disabled={loadingSalaries} className="whitespace-nowrap"><FileDown className="w-4 h-4 mr-2"/>Export CSV</Button>
                   </div>
                 </div>
 
@@ -432,6 +508,7 @@ export default function PaymentsPage() {
                         <th className="text-right p-3">Hours</th>
                         <th className="text-right p-3">Hourly</th>
                         <th className="text-right p-3">Calculated</th>
+                        <th className="text-right p-3">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -444,7 +521,11 @@ export default function PaymentsPage() {
                                 <AvatarFallback>{(s.employee_name||'').split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase()}</AvatarFallback>
                               </Avatar>
                               <div>
-                                <div className="font-medium" title={`${s.employee_name} (${s.employee_code})`}>{s.employee_name}</div>
+                                <div className="font-medium" title={`${s.employee_name} (${s.employee_code})`}>
+                                  <Link href={`/attendance?employee_id=${s.employee_id}`} className="hover:underline">
+                                    {s.employee_name}
+                                  </Link>
+                                </div>
                                 <div className="text-xs text-muted-foreground">{s.employee_code}</div>
                               </div>
                             </div>
@@ -457,10 +538,15 @@ export default function PaymentsPage() {
                           <td className="p-3 text-right">{s.monthly_hours_worked != null ? s.monthly_hours_worked.toFixed(2) : '-'}</td>
                           <td className="p-3 text-right">{s.hourly_rate != null ? `XAF ${s.hourly_rate.toLocaleString()}` : '-'}</td>
                           <td className="p-3 text-right font-medium">{s.calculated_salary != null ? `XAF ${s.calculated_salary.toLocaleString()}` : '-'}</td>
+                          <td className="p-3 text-right">
+                            <Button size="sm" variant="outline" className="gap-2" onClick={() => openBreakdown(s.employee_id)}>
+                              <Eye className="w-4 h-4"/> View breakdown
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                       {(!salariesResp || salariesResp.salaries.length === 0) && (
-                        <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">{loadingSalaries ? 'Loading salaries…' : 'No salary data found'}</td></tr>
+                        <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">{loadingSalaries ? 'Loading salaries…' : 'No salary data found'}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -485,6 +571,100 @@ export default function PaymentsPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Breakdown Modal */}
+        <Dialog open={breakdownOpen} onOpenChange={setBreakdownOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Salary Breakdown</DialogTitle>
+              <DialogDescription>
+                {breakdownResp?.salary_info ? (
+                  <span>
+                    {breakdownResp.salary_info.employee_name} ({breakdownResp.salary_info.employee_code})
+                  </span>
+                ) : (
+                  <span>Details</span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* Controls synced with Salaries filters */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              <div>
+                <Label>Month</Label>
+                <Select value={String(salMonth || "")} onValueChange={(v)=> { setSalMonth(v? Number(v) : undefined); loadBreakdown(); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({length:12}, (_,i)=> i+1).map(m => (
+                      <SelectItem key={m} value={String(m)}>{new Date(2000, m-1, 1).toLocaleString(undefined, { month: 'long' })}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Year</Label>
+                <Select value={String(salYear || "")} onValueChange={(v)=> { setSalYear(v? Number(v) : undefined); loadBreakdown(); }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({length: 6}, (_,i)=> new Date().getFullYear() - i).map(y => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button variant="outline" onClick={() => loadBreakdown()} disabled={loadingBreakdown} className="w-full">{loadingBreakdown ? 'Loading…' : 'Refresh'}</Button>
+              </div>
+            </div>
+
+            {/* Content */}
+            {loadingBreakdown && (
+              <div className="py-8 text-center text-muted-foreground">Loading breakdown…</div>
+            )}
+            {!loadingBreakdown && breakdownResp && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-semibold mb-2">Salary Info</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                    <div>Base: <span className="font-medium">{breakdownResp.salary_info.base_salary != null ? `XAF ${breakdownResp.salary_info.base_salary.toLocaleString()}` : '-'}</span></div>
+                    <div>Hourly: <span className="font-medium">{breakdownResp.salary_info.hourly_rate != null ? `XAF ${breakdownResp.salary_info.hourly_rate.toLocaleString()}` : '-'}</span></div>
+                    <div>Hours Worked: <span className="font-medium">{breakdownResp.salary_info.monthly_hours_worked != null ? breakdownResp.salary_info.monthly_hours_worked.toFixed(2) : '-'}</span></div>
+                    <div>Expected Hours: <span className="font-medium">{breakdownResp.salary_info.expected_hours ?? '-'}</span></div>
+                    <div>Calculated: <span className="font-medium">{breakdownResp.salary_info.calculated_salary != null ? `XAF ${breakdownResp.salary_info.calculated_salary.toLocaleString()}` : '-'}</span></div>
+                    <div>Month: <span className="font-medium">{breakdownResp.salary_info.month} {breakdownResp.salary_info.year}</span></div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">Attendance Details</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                    <div>Days Worked: <span className="font-medium">{breakdownResp.attendance_details.days_worked}</span></div>
+                    <div>Days Present: <span className="font-medium">{breakdownResp.attendance_details.days_present}</span></div>
+                    <div>Total Records: <span className="font-medium">{breakdownResp.attendance_details.total_attendance_records}</span></div>
+                    <div>Attendance %: <span className="font-medium">{breakdownResp.attendance_details.attendance_percentage}%</span></div>
+                    <div>Hours Efficiency: <span className="font-medium">{breakdownResp.attendance_details.hours_efficiency}%</span></div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold mb-2">Salary Breakdown</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+                    <div>Base Monthly: <span className="font-medium">{breakdownResp.salary_breakdown.base_monthly_salary != null ? `XAF ${breakdownResp.salary_breakdown.base_monthly_salary.toLocaleString()}` : '-'}</span></div>
+                    <div>Hourly Rate: <span className="font-medium">{breakdownResp.salary_breakdown.hourly_rate != null ? `XAF ${breakdownResp.salary_breakdown.hourly_rate.toLocaleString()}` : '-'}</span></div>
+                    <div>Hours Worked: <span className="font-medium">{breakdownResp.salary_breakdown.hours_worked != null ? breakdownResp.salary_breakdown.hours_worked.toFixed(2) : '-'}</span></div>
+                    <div>Expected Hours: <span className="font-medium">{breakdownResp.salary_breakdown.expected_hours ?? '-'}</span></div>
+                    <div>Calculated: <span className="font-medium">{breakdownResp.salary_breakdown.calculated_salary != null ? `XAF ${breakdownResp.salary_breakdown.calculated_salary.toLocaleString()}` : '-'}</span></div>
+                    <div>Salary Difference: <span className="font-medium">{breakdownResp.salary_breakdown.salary_difference != null ? `XAF ${breakdownResp.salary_breakdown.salary_difference.toLocaleString()}` : '-'}</span></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
