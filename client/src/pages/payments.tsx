@@ -28,6 +28,9 @@ export default function PaymentsPage() {
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState<string>("");
   const [isSubmittingManual, setIsSubmittingManual] = useState(false);
+  // Manual: salary lookup state (reuses salMonth/salYear filters)
+  const [manualSalary, setManualSalary] = useState<EmployeeSalaryResponse | null>(null);
+  const [loadingManualSalary, setLoadingManualSalary] = useState(false);
 
   // CSV upload state
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -66,6 +69,23 @@ export default function PaymentsPage() {
     loadSalaries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salPage, salLimit, salMonth, salYear, salDept]);
+
+  const fetchManualSalary = async () => {
+    if (!employeeId) return;
+    try {
+      setLoadingManualSalary(true);
+      const resp = await getEmployeeSalary(employeeId, { month: salMonth, year: salYear });
+      setManualSalary(resp);
+      const calc = resp?.salary_breakdown?.calculated_salary ?? resp?.salary_info?.calculated_salary ?? null;
+      if (calc != null && !Number.isNaN(calc)) {
+        setAmount(String(calc));
+      }
+    } catch (e: any) {
+      toast({ title: "Salary lookup failed", description: e?.message || "", variant: "destructive" });
+    } finally {
+      setLoadingManualSalary(false);
+    }
+  };
 
   const openBreakdown = async (employeeId: string) => {
     setBreakdownEmpId(employeeId);
@@ -298,6 +318,41 @@ export default function PaymentsPage() {
                 <CardTitle>Manual Payout</CardTitle>
               </CardHeader>
               <CardContent>
+                {/* Month/Year for salary lookup (reuses Salaries filters) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div>
+                    <Label>Month</Label>
+                    <Select value={String(salMonth || "")} onValueChange={(v)=> setSalMonth(v? Number(v) : undefined)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({length:12}, (_,i)=> i+1).map(m => (
+                          <SelectItem key={m} value={String(m)}>{new Date(2000, m-1, 1).toLocaleString(undefined, { month: 'long' })}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Year</Label>
+                    <Select value={String(salYear || "")} onValueChange={(v)=> setSalYear(v? Number(v) : undefined)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({length: 6}, (_,i)=> new Date().getFullYear() - i).map(y => (
+                          <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="button" variant="outline" onClick={fetchManualSalary} disabled={!employeeId || loadingManualSalary} className="w-full">
+                      {loadingManualSalary ? 'Fetching…' : 'Get Calculated Salary'}
+                    </Button>
+                  </div>
+                </div>
+
                 <form onSubmit={handleManualPayout} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <Label>Employee</Label>
@@ -327,6 +382,19 @@ export default function PaymentsPage() {
                         className="pl-16"
                       />
                     </div>
+                    {manualSalary && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Calculated for {manualSalary.salary_info.month} {manualSalary.salary_info.year}: 
+                        <span className="font-medium"> {currency} {Number(manualSalary.salary_info.calculated_salary ?? manualSalary.salary_breakdown?.calculated_salary ?? 0).toLocaleString()}</span>
+                        {manualSalary.salary_info.monthly_hours_worked != null && (
+                          <span> • Hours: {manualSalary.salary_info.monthly_hours_worked.toFixed(2)}</span>
+                        )}
+                        <Button type="button" variant="link" className="px-2" onClick={() => {
+                          const calc = manualSalary?.salary_breakdown?.calculated_salary ?? manualSalary?.salary_info?.calculated_salary ?? null;
+                          if (calc != null) setAmount(String(calc));
+                        }}>Use this</Button>
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label>Medium</Label>
