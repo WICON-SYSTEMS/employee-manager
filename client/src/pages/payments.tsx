@@ -65,14 +65,16 @@ export default function PaymentsPage() {
     }
   };
 
-  // When switching employee, clear previous salary and amount so new data shows promptly
+  // When switching employee, clear previous salary/amount and immediately fetch new salary
   useEffect(() => {
     if (!employeeId) return;
     setManualSalary(null);
     setAmount("");
+    // fetch immediately for snappy UX
+    fetchManualSalary();
   }, [employeeId]);
 
-  // Auto-fetch salary when employee or month/year changes (debounced)
+  // Auto-fetch salary when month/year changes (debounced). Employee change handled above immediately.
   useEffect(() => {
     if (!employeeId) return;
     const timer = setTimeout(async () => {
@@ -91,7 +93,7 @@ export default function PaymentsPage() {
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [employeeId, salMonth, salYear]);
+  }, [salMonth, salYear, employeeId]);
 
   useEffect(() => {
     loadSalaries();
