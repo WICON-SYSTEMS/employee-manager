@@ -10,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useEmployees } from "@/hooks/use-employees";
 import { sendPayout, getPayoutEnvInfo, type PayoutMedium } from "@/lib/payments";
-import { Download, Upload, Wallet, FileSpreadsheet, Shield } from "lucide-react";
+import { Download, Upload, Wallet, FileSpreadsheet, Shield, Coins } from "lucide-react";
+import { getAllSalaries, type SalariesListResponse } from "@/lib/salaries";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function PaymentsPage() {
   const { toast } = useToast();
@@ -30,6 +32,32 @@ export default function PaymentsPage() {
   const [csvPreview, setCsvPreview] = useState<string[][]>([]);
   const [csvDefaultMedium, setCsvDefaultMedium] = useState<PayoutMedium>("mobile money");
   const [csvInProgress, setCsvInProgress] = useState<{ total: number; done: number; success: number; failed: number } | null>(null);
+
+  // Salaries state
+  const [salMonth, setSalMonth] = useState<number | undefined>(new Date().getMonth() + 1);
+  const [salYear, setSalYear] = useState<number | undefined>(new Date().getFullYear());
+  const [salDept, setSalDept] = useState<string>("");
+  const [salPage, setSalPage] = useState(1);
+  const [salLimit, setSalLimit] = useState(20);
+  const [salariesResp, setSalariesResp] = useState<SalariesListResponse | null>(null);
+  const [loadingSalaries, setLoadingSalaries] = useState(false);
+
+  const loadSalaries = async () => {
+    try {
+      setLoadingSalaries(true);
+      const data = await getAllSalaries({ page: salPage, limit: salLimit, month: salMonth, year: salYear, department: salDept || undefined });
+      setSalariesResp(data);
+    } catch (e: any) {
+      toast({ title: "Failed to load salaries", description: e?.message || "", variant: "destructive" });
+    } finally {
+      setLoadingSalaries(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSalaries();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salPage, salLimit, salMonth, salYear, salDept]);
 
   const sortedEmployees = useMemo(
     () => [...employees].sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)),
@@ -184,6 +212,9 @@ export default function PaymentsPage() {
             <TabsTrigger value="csv" className="gap-2">
               <FileSpreadsheet className="w-4 h-4" /> CSV Upload
             </TabsTrigger>
+            <TabsTrigger value="salaries" className="gap-2">
+              <Coins className="w-4 h-4" /> Salaries
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="manual">
@@ -334,6 +365,120 @@ export default function PaymentsPage() {
                     {csvPreview.length === 1 && (
                       <p className="text-xs text-muted-foreground mt-2">No data rows found in the CSV.</p>
                     )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          {/* Salaries Tab */}
+          <TabsContent value="salaries">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Monthly Salaries</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <Label>Month</Label>
+                    <Select value={String(salMonth || "")} onValueChange={(v)=> setSalMonth(v? Number(v) : undefined)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Month" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({length:12}, (_,i)=> i+1).map(m => (
+                          <SelectItem key={m} value={String(m)}>{new Date(2000, m-1, 1).toLocaleString(undefined, { month: 'long' })}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Year</Label>
+                    <Select value={String(salYear || "")} onValueChange={(v)=> setSalYear(v? Number(v) : undefined)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({length: 6}, (_,i)=> new Date().getFullYear() - i).map(y => (
+                          <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Department</Label>
+                    <Input placeholder="e.g. Engineering" value={salDept} onChange={(e)=> setSalDept(e.target.value)} />
+                  </div>
+                  <div className="flex items-end">
+                    <Button variant="outline" onClick={() => { setSalPage(1); loadSalaries(); }} disabled={loadingSalaries} className="w-full">{loadingSalaries ? 'Loading…' : 'Refresh'}</Button>
+                  </div>
+                </div>
+
+                {salariesResp?.month_summary && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div className="p-3 bg-muted rounded">Month: <span className="font-medium">{salariesResp.month_summary.month} {salariesResp.month_summary.year}</span></div>
+                    <div className="p-3 bg-muted rounded">Employees: <span className="font-medium">{salariesResp.month_summary.total_employees}</span></div>
+                    <div className="p-3 bg-muted rounded">Total Budget: <span className="font-medium">XAF {salariesResp.month_summary.total_salary_budget.toLocaleString()}</span></div>
+                    <div className="p-3 bg-muted rounded">Total Hours: <span className="font-medium">{salariesResp.month_summary.total_hours_worked.toFixed(2)}</span></div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 text-muted-foreground">
+                      <tr>
+                        <th className="text-left p-3">Employee</th>
+                        <th className="text-left p-3">Department</th>
+                        <th className="text-right p-3">Base</th>
+                        <th className="text-right p-3">Hours</th>
+                        <th className="text-right p-3">Hourly</th>
+                        <th className="text-right p-3">Calculated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(salariesResp?.salaries || []).map((s, idx) => (
+                        <tr key={`${s.employee_id}-${idx}`} className="border-b last:border-b-0">
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={s.image_url || ''} alt={s.employee_name} className="object-cover" />
+                                <AvatarFallback>{(s.employee_name||'').split(' ').map(p=>p[0]).slice(0,2).join('').toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-medium" title={`${s.employee_name} (${s.employee_code})`}>{s.employee_name}</div>
+                                <div className="text-xs text-muted-foreground">{s.employee_code}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <div className="text-foreground">{s.department || '-'}</div>
+                            <div className="text-xs text-muted-foreground">{s.position || '-'}</div>
+                          </td>
+                          <td className="p-3 text-right">{s.base_salary != null ? `XAF ${s.base_salary.toLocaleString()}` : '-'}</td>
+                          <td className="p-3 text-right">{s.monthly_hours_worked != null ? s.monthly_hours_worked.toFixed(2) : '-'}</td>
+                          <td className="p-3 text-right">{s.hourly_rate != null ? `XAF ${s.hourly_rate.toLocaleString()}` : '-'}</td>
+                          <td className="p-3 text-right font-medium">{s.calculated_salary != null ? `XAF ${s.calculated_salary.toLocaleString()}` : '-'}</td>
+                        </tr>
+                      ))}
+                      {(!salariesResp || salariesResp.salaries.length === 0) && (
+                        <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">{loadingSalaries ? 'Loading salaries…' : 'No salary data found'}</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {salariesResp?.pagination && (
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <div>Page {salariesResp.pagination.current_page} of {salariesResp.pagination.total_pages}</div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" disabled={!salariesResp.pagination.has_previous || loadingSalaries} onClick={()=> setSalPage(p => Math.max(1, p-1))}>Previous</Button>
+                      <Button variant="outline" disabled={!salariesResp.pagination.has_next || loadingSalaries} onClick={()=> setSalPage(p => p+1)}>Next</Button>
+                      <Select value={String(salLimit)} onValueChange={(v)=> { setSalLimit(Number(v)); setSalPage(1); }}>
+                        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {[10,20,50,100].map(n => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 )}
               </CardContent>
