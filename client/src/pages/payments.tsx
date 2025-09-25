@@ -65,6 +65,34 @@ export default function PaymentsPage() {
     }
   };
 
+  // When switching employee, clear previous salary and amount so new data shows promptly
+  useEffect(() => {
+    if (!employeeId) return;
+    setManualSalary(null);
+    setAmount("");
+  }, [employeeId]);
+
+  // Auto-fetch salary when employee or month/year changes (debounced)
+  useEffect(() => {
+    if (!employeeId) return;
+    const timer = setTimeout(async () => {
+      try {
+        setLoadingManualSalary(true);
+        const resp = await getEmployeeSalary(employeeId, { month: salMonth, year: salYear });
+        setManualSalary(resp);
+        const calc = resp?.salary_breakdown?.calculated_salary ?? resp?.salary_info?.calculated_salary ?? null;
+        if ((amount ?? "") === "" && calc != null && !Number.isNaN(calc)) {
+          setAmount(String(calc));
+        }
+      } catch (e: any) {
+        // Silent for auto-fetch; manual button shows toast
+      } finally {
+        setLoadingManualSalary(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [employeeId, salMonth, salYear]);
+
   useEffect(() => {
     loadSalaries();
     // eslint-disable-next-line react-hooks/exhaustive-deps
