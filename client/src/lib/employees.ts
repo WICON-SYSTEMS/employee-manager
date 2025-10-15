@@ -60,7 +60,7 @@ export async function uploadEmployeeBiometrics(
 
   const response = await apiRequest(
     "POST",
-    `/v1/mobile/employees/${employeeId}/facial-biometrics/upload`,
+    `/v1/mobile/employees/${employeeId}/image-upload-generate-qr`,
     formData,
     true
   );
