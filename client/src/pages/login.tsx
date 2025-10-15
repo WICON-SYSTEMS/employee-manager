@@ -21,7 +21,7 @@ export default function Login() {
     resolver: zodResolver(loginSchema),
     defaultValues: {
       username: "admin",
-      password: "admin123",
+      password: "admin@password",
     },
   });
 
@@ -130,7 +130,7 @@ export default function Login() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
-              Demo credentials: admin / admin123
+              Demo credentials: admin / admin@password
             </p>
           </div>
         </CardContent>
